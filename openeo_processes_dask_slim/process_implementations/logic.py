@@ -11,14 +11,20 @@ from openeo_processes_dask_slim.process_implementations.cubes.utils import (
 __all__ = ["_and", "_or", "xor", "_not", "_if", "_any", "_all"]
 
 
+def _scalar_safe_where(condition, x, y):
+    if not hasattr(condition, 'shape'):
+        return x if condition else y
+    return np.where(condition, x, y)
+
+
 def _and(x: ArrayLike, y: ArrayLike):
     nan_x = isnull(x)
     nan_y = isnull(y)
     xy = np.logical_and(x, y)
     nan_mask = np.logical_and(nan_x, xy)
-    xy = np.where(~nan_mask, xy, np.nan)
+    xy = _scalar_safe_where(~nan_mask, xy, np.nan)
     nan_mask = np.logical_and(nan_y, xy)
-    xy = np.where(~nan_mask, xy, np.nan)
+    xy = _scalar_safe_where(~nan_mask, xy, np.nan)
     return xy
 
 
@@ -29,9 +35,9 @@ def _or(x: ArrayLike, y: ArrayLike):
     y = np.nan_to_num(y)
     xy = np.logical_or(x, y)
     nan_mask = np.logical_and(nan_x, np.logical_not(xy))
-    xy = np.where(~nan_mask, xy, np.nan)
+    xy = _scalar_safe_where(~nan_mask, xy, np.nan)
     nan_mask = np.logical_and(nan_y, np.logical_not(xy))
-    xy = np.where(~nan_mask, xy, np.nan)
+    xy = _scalar_safe_where(~nan_mask, xy, np.nan)
     return xy
 
 
@@ -39,14 +45,14 @@ def xor(x: ArrayLike, y: ArrayLike):
     nan_x = isnull(x)
     nan_y = isnull(y)
     xy = np.logical_xor(x, y)
-    xy = np.where(~nan_x, xy, np.nan)
-    xy = np.where(~nan_y, xy, np.nan)
+    xy = _scalar_safe_where(~nan_x, xy, np.nan)
+    xy = _scalar_safe_where(~nan_y, xy, np.nan)
     return xy
 
 
 def _not(x: ArrayLike):
     not_x = np.logical_not(x)
-    not_x = np.where(notnull(x), not_x, np.nan)
+    not_x = _scalar_safe_where(notnull(x), not_x, np.nan)
     return not_x
 
 
@@ -55,7 +61,11 @@ def _if(
     accept: Union[np.array, list, str, float, int],
     reject: Optional[Union[np.array, list, str, float, int]] = np.nan,
 ):
-    return np.where(value, accept, reject)
+    if hasattr(value, 'shape') or hasattr(value, '__len__'):
+        return np.where(value, accept, reject)
+    if isinstance(accept, (list, np.ndarray)):
+        return np.where(value, accept, reject)
+    return accept if value else reject
 
 
 def _any(

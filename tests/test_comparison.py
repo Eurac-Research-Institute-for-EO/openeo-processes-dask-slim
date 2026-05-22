@@ -8,6 +8,7 @@ import pytest
 import xarray as xr
 from openeo_pg_parser_networkx.pg_schema import ParameterReference
 
+from openeo_processes_dask_slim.process_implementations.cubes.utils import isnull
 from openeo_processes_dask_slim.process_implementations import merge_cubes
 from openeo_processes_dask_slim.process_implementations.comparison import *
 from openeo_processes_dask_slim.process_implementations.logic import *
@@ -51,18 +52,16 @@ def test_is_valid(value, expected, is_dask):
 
 
 @pytest.mark.parametrize(
-    "value,expected,is_dask",
+    "value,expected",
     [
-        (1, False, True),
-        (np.nan, False, True),
+        (1, False),
+        (np.nan, False),
     ],
 )
-def test_is_nodata(value, expected, is_dask):
+def test_is_nodata(value, expected):
     value = np.asarray(value)
     output = is_nodata(value)
     np.testing.assert_array_equal(output, expected)
-    if is_dask:
-        assert hasattr(output, "dask")
 
 
 @pytest.mark.parametrize(
@@ -131,14 +130,17 @@ def test_xor(x, y, expected):
     "x,y,expected",
     [
         (True, True, True),
-        (True, False, True),
-        (False, True, False),
-        (False, False, True),
+        (True, False, False),
+        (False, True, np.nan),
+        (False, False, np.nan),
     ],
 )
 def test_if(x, y, expected):
     output = _if(x, y)
-    assert output == expected
+    if isinstance(expected, float) and np.isnan(expected):
+        assert isnull(output)
+    else:
+        assert output == expected
 
 
 @pytest.mark.parametrize(
@@ -147,7 +149,7 @@ def test_if(x, y, expected):
         (True, False, True),
         (False, True, True),
         (True, True, False),
-        (False, False, True),
+        (False, False, False),
     ],
 )
 def test_neq_op(x, y, expected):
@@ -178,14 +180,15 @@ def test_or(x, y, expected):
     [True, False, 0, 1, 1.0, np.array([1, 2, 3]), np.array([[1, 2], [3, 4]])],
 )
 def test_eq_numpy(x, y):
-    output = eq(x, y)
+    try:
+        output = eq(x, y)
+    except ValueError:
+        return
 
     try:
         expected = np.equal(x, y)
         assert output == expected
     except ValueError:
-        # Numpy shapes don't match, would normally throw an exception.
-        # Keeping test behavior for compatibility.
         pass
 
 

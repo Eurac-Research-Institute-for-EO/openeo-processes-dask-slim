@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 specs_path = Path() / "openeo_processes_dask_slim/specs/openeo-processes"
 
 

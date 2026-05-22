@@ -109,7 +109,10 @@ def merge_cubes(
                     dim for dim in cube2.dims if dim not in cube1.dims
                 ]
                 merged_cube = xr.combine_by_coords(
-                    [cube1, cube2], combine_attrs="drop_conflicts", compat="override"
+                    [cube1, cube2],
+                    combine_attrs="drop_conflicts",
+                    compat="override",
+                    coords="minimal",
                 )
                 merged_cube = merged_cube.transpose(*previous_dim_order)
             elif (
@@ -189,7 +192,10 @@ def merge_cubes(
                     dim for dim in cube2.dims if dim not in cube1.dims
                 ]
                 merged_cube = xr.combine_by_coords(
-                    [cube1, cube2], combine_attrs="drop_conflicts", compat="override"
+                    [cube1, cube2],
+                    combine_attrs="drop_conflicts",
+                    compat="override",
+                    coords="minimal",
                 )
                 merged_cube = merged_cube.transpose(*previous_dim_order)
 

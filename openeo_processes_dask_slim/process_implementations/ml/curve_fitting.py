@@ -7,7 +7,11 @@ import xarray as xr
 from numpy.typing import ArrayLike
 
 from openeo_processes_dask_slim.process_implementations.cubes import apply_dimension
-from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
+from openeo_processes_dask_slim.process_implementations.data_model import (
+    RasterCube,
+    _stack_bands,
+    _unstack_bands,
+)
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
 )
@@ -27,12 +31,17 @@ def fit_curve(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
         )
     bands_required = False
-    if "bands" in data.dims:
-        if len(data["bands"].values) == 1:
-            bands_required = data["bands"].values[0]
+    input_was_dataset = isinstance(data, xr.Dataset)
+    if input_was_dataset:
+        if len(data.data_vars) == 1:
+            bands_required = list(data.data_vars.keys())[0]
+        data = _stack_bands(data)
+    else:
+        if "bands" in data.dims:
+            if len(data["bands"].values) == 1:
+                bands_required = data["bands"].values[0]
 
     try:
-        # Try parsing as datetime first
         dates = data[dimension].values
         dates = np.asarray(dates, dtype=np.datetime64)
     except ValueError:
@@ -50,14 +59,11 @@ def fit_curve(
 
     dims_before = list(data.dims)
 
-    # In the spec, parameters is a list, but xr.curvefit requires names for them,
-    # so we do this to generate names locally
     parameters = {f"param_{i}": v for i, v in enumerate(parameters)}
 
     chunking = {key: "auto" for key in data.dims if key != dimension}
     chunking[dimension] = -1
 
-    # The dimension along which to fit the curves cannot be chunked!
     rechunked_data = data.chunk(chunking)
     rechunked_data = rechunked_data.persist()
 
@@ -74,8 +80,6 @@ def fit_curve(
     expected_dims_after = list(dims_before)
     expected_dims_after[dims_before.index(dimension)] = "param"
 
-    # .curvefit returns some extra information that isn't required by the OpenEO process
-    # so we simply drop these here.
     fit_result = (
         rechunked_data.curvefit(
             dimension,
@@ -85,13 +89,16 @@ def fit_curve(
             skipna=ignore_nodata,
         )
         .drop_dims(["cov_i", "cov_j"])
-        .to_array()
-        .squeeze()
     )
+
+    if isinstance(fit_result, xr.Dataset):
+        fit_result = fit_result.to_array().squeeze()
+        if "variable" in fit_result.dims and "param" not in fit_result.dims:
+            fit_result = fit_result.rename({"variable": "param"})
 
     fit_result.attrs = data.attrs
     fit_result = odc.geo.xr.assign_crs(fit_result, crs=rechunked_data.odc.crs)
-    if bands_required and not "bands" in fit_result.dims:
+    if bands_required and "bands" not in fit_result.dims:
         fit_result = fit_result.assign_coords(**{"bands": bands_required})
         fit_result = fit_result.expand_dims(dim="bands")
 

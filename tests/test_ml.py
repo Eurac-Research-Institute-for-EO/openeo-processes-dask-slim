@@ -83,12 +83,12 @@ def test_curve_fitting(temporal_interval, bounding_box, random_raster_data):
     assert isinstance(result.data, dask.array.Array)
     assert result.odc.crs == origin_cube.odc.crs
 
-    assert len(result.coords["bands"]) == len(origin_cube.coords["bands"])
+    assert len(result.coords["bands"]) == len(list(origin_cube.data_vars))
     assert len(result.coords["x"]) == len(origin_cube.coords["x"])
     assert len(result.coords["y"]) == len(origin_cube.coords["y"])
     assert len(result.coords["param"]) == len(parameters)
 
-    origin_cube_B02 = origin_cube.sel(bands=["B02"])
+    origin_cube_B02 = origin_cube[["B02"]]
     result_B02 = fit_curve(
         origin_cube_B02, parameters=parameters, function=_process, dimension="t"
     )

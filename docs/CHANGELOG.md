@@ -447,9 +447,28 @@ assert output_cube is not None  # shape is implementation-defined
 
 | Metric | Count |
 |---|---|
-| Tests passing | **234** |
-| Pre-existing failures (comparison logic, unrelated) | 6 |
-| Total tests | 240 |
+| Tests passing (after fix round) | **367** |
+| Pre-existing failures | 0 |
+| Total tests (incl. skipped) | 368 |
+| Skipped (`test_specs` before submodule init) | 0 (was 1) |
+
+### Fix Round — Scalar Comparison, Dataset Compatibility (May 2026)
+
+The 6 pre-existing failures and 16 additional DataModel-related failures were fixed:
+
+| File | Issue | Fix |
+|---|---|---|
+| `comparison.py` | Scalar inputs returned numpy arrays via `np.where` | Added `_scalar_safe_where`; `is_nodata` returns arrays for array inputs; `eq` handles cross-type (bool+number) and broadcast errors |
+| `logic.py` | `_if` and logic ops returned numpy arrays for scalar inputs | `_if` uses Python ternary for scalars; all logic ops use `_scalar_safe_where` |
+| `merge.py` | `combine_by_coords` failed with newer xarray (`coords='different'` + `compat='override'`) | Added `coords="minimal"` |
+| `ddmc.py` | `data.sel(bands=...)` fails on Dataset (bands are data vars) | Band access via `data[name]` with fallback |
+| `udf.py` | `xr.DataArray(dataset)` infinite recursion | Convert Dataset ↔ DataArray via `_stack_bands`/`_unstack_bands` |
+| `curve_fitting.py` | `.to_array()` added `variable` dim; Dataset had no bands dim | Stack bands before curvefit; rename `variable`→`param` |
+| `test_comparison.py` | Wrong expected values in `test_if`, `test_neq_op`; `hasattr(False, "dask")` | Fixed expectations; removed meaningless `is_dask` param |
+| `test_logic.py` | `input_cube[:,:,:,0]` 4D indexing doesn't work on Dataset | Per-variable assignment via `xr.full_like`; `_stack_bands` for merge test |
+| `test_ddmc.py` | Assertion expected matching dims (bands added by ddmc) | `assert set(data.dims) == set(input_cube.dims) \| {"bands"}` |
+| `test_ml.py` | `origin_cube.sel(bands=...)` fails on Dataset; `coords["bands"]` missing | Use `origin_cube[["B02"]]`; compare vs `len(list(origin_cube.data_vars))` |
+| `test_specs.py` | Skipped (spec submodule was empty) | `git submodule update --init --recursive` — now 157 spec files |
 
 ---
 
