@@ -420,7 +420,66 @@ A phase is complete only when:
   - Dataset variable order: `(t, y, x)`
 - The code still resembles `main` and avoids unnecessary deletion.
 
-## 15. Explicit Assumptions
+## 15. Final Enforcement Plan
+
+The following phases complete the migration by switching `RasterCube` from `Union[xr.DataArray, xr.Dataset]` to strict `xr.Dataset`.
+
+### Phase A — Change the type alias
+
+Set `RasterCube = xr.Dataset` in `data_model.py`. No runtime impact alone — Python type aliases are hints, not enforced.
+
+### Phase B — Enable enforcement process-by-process
+
+For each process that already works with Dataset inputs:
+
+1. Change `ensure_raster_cube` to reject `xr.DataArray` (raise `TypeError`).
+2. Update that process's tests to create Datasets via `create_fake_rastercube(..., as_dataset=True)`.
+3. Update any other tests that call the process with DataArrays.
+
+Start with the most foundational processes and work outward:
+
+```text
+Phase B order:
+  apply / apply_dimension / reduce_dimension   (L1, already migrated)
+  add_dimension / drop_dimension / rename_dimension
+  filter_bands / filter_temporal / filter_bbox
+  ndvi
+  aggregate_temporal / aggregate_temporal_period
+  mask
+  merge_cubes
+  predict_random_forest
+```
+
+### Phase C — Fix the call chain
+
+Many non-L1 processes call L1 processes internally. For each:
+
+- If the caller already handles Dataset: convert test input to Dataset.
+- If the caller uses DataArray-only APIs: migrate it to Dataset first, then enable enforcement.
+
+### Phase D — Make Dataset the test default
+
+1. Change `create_fake_rastercube` default `as_dataset` to `True`.
+2. Remove old DataArray-specific test branches.
+3. Run the static shortcut audit on migrated modules:
+
+```text
+.to_array(
+.to_dataset(   (only in non-migrated paths)
+xr.DataArray    (only in non-migrated paths)
+.values         (justified)
+.to_numpy()
+.compute()      (justified in tests)
+```
+
+### Acceptance Gates
+
+- `RasterCube = xr.Dataset` with no remaining Union.
+- `ensure_raster_cube` raises for DataArray in all migrated public processes.
+- All 300+ tests pass with Dataset test data by default.
+- Static audit finds no hidden DataArray fallback in migrated raster paths.
+
+## 16. Explicit Assumptions
 
 - `main` remains the style and structure baseline.
 - `dev_remodel` is the long-lived integration branch.
