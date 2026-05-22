@@ -17,6 +17,13 @@ from openeo_processes_dask_slim.process_implementations.exceptions import (
 from tests.mockdata import create_fake_rastercube
 
 
+def _get_data(cube):
+    if isinstance(cube, xr.Dataset):
+        first_var = list(cube.data_vars.values())[0]
+        return first_var.data
+    return cube.data
+
+
 @pytest.mark.parametrize("size", [(6, 5, 4, 4)])
 @pytest.mark.parametrize("dtype", [np.float64])
 def test_merge_cubes_type_1(temporal_interval, bounding_box, random_raster_data):
@@ -29,11 +36,11 @@ def test_merge_cubes_type_1(temporal_interval, bounding_box, random_raster_data)
         backend="dask",
     )
 
-    cube_1 = origin_cube.drop_sel({"bands": ["B04", "--324"]})
-    cube_2 = origin_cube.drop_sel({"bands": ["B02", "B03"]})
+    cube_1 = origin_cube[["B02", "B03"]]
+    cube_2 = origin_cube[["B04", "--324"]]
 
     merged_cube = merge_cubes(cube_1, cube_2)
-    assert isinstance(merged_cube.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube), dask.array.Array)
 
     xr.testing.assert_equal(merged_cube, origin_cube)
 
@@ -51,8 +58,8 @@ def test_merge_cubes_type_2(
         backend="dask",
     )
 
-    cube_1 = origin_cube.drop_sel({"bands": "B03"})
-    cube_2 = origin_cube.drop_sel({"bands": "B01"})
+    cube_1 = origin_cube[["B01", "B02"]]
+    cube_2 = origin_cube[["B02", "B03"]]
 
     with pytest.raises(OverlapResolverMissing):
         merge_cubes(cube_1, cube_2)
@@ -63,10 +70,10 @@ def test_merge_cubes_type_2(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert isinstance(merged_cube.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube), dask.array.Array)
 
     xr.testing.assert_equal(
-        merged_cube.sel({"bands": "B02"}) / 2, origin_cube.sel({"bands": "B02"})
+        merged_cube["B02"] / 2, origin_cube["B02"]
     )
 
 
@@ -104,7 +111,7 @@ def test_merge_cubes_type_3(
             y=ParameterReference(from_parameter="y"),
         ),
     )
-    assert isinstance(merged_cube.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube), dask.array.Array)
 
     xr.testing.assert_equal(merged_cube, cube_1 * 2)
 
@@ -123,9 +130,8 @@ def test_merge_cubes_type_4(
         backend="dask",
     )
 
-    cube_2 = xr.DataArray(
-        np.ones((len(cube_1["x"]), len(cube_1["y"]))),
-        dims=["x", "y"],
+    cube_2 = xr.Dataset(
+        {"band": (("y", "x"), np.ones((len(cube_1["y"]), len(cube_1["x"]))))},
         coords={"x": cube_1.coords["x"], "y": cube_1.coords["y"]},
     )
 
@@ -140,10 +146,10 @@ def test_merge_cubes_type_4(
     merged_cube_1 = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
     merged_cube_2 = merge_cubes(cube_2, cube_1, overlap_resolver=overlap_resolver)
 
-    assert isinstance(merged_cube_1.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube_1), dask.array.Array)
     xr.testing.assert_equal(merged_cube_1, cube_1 + 1)
 
-    assert isinstance(merged_cube_2.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube_2), dask.array.Array)
     xr.testing.assert_equal(merged_cube_2, cube_1 + 1)
 
 
@@ -153,7 +159,6 @@ def test_conflicting_coords(
     temporal_interval, bounding_box, random_raster_data, process_registry
 ):
     # See https://github.com/Open-EO/openeo-processes-dask/pull/148 for why is is necessary
-    # This is basically broadcasting the smaller datacube and then applying the overlap resolver.
     cube_1 = create_fake_rastercube(
         data=random_raster_data,
         spatial_extent=bounding_box,
@@ -161,7 +166,7 @@ def test_conflicting_coords(
         bands=["B01"],
         backend="dask",
     )
-    cube_1["s2:processing_baseline"] = "05.8"
+    cube_1.attrs["s2:processing_baseline"] = "05.8"
     cube_2 = create_fake_rastercube(
         data=random_raster_data,
         spatial_extent=bounding_box,
@@ -169,11 +174,11 @@ def test_conflicting_coords(
         bands=["B02"],
         backend="dask",
     )
-    cube_2["s2:processing_baseline"] = "05.9"
+    cube_2.attrs["s2:processing_baseline"] = "05.9"
 
     merged_cube_1 = merge_cubes(cube_1, cube_2)
 
-    assert isinstance(merged_cube_1.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube_1), dask.array.Array)
 
 
 def test_merge_float_coord_alignment(bounding_box, temporal_interval):
@@ -195,4 +200,4 @@ def test_merge_float_coord_alignment(bounding_box, temporal_interval):
     )
 
     merged = merge_cubes(cube_a, cube_b)
-    assert isinstance(merged, xr.DataArray)
+    assert isinstance(merged, xr.Dataset)

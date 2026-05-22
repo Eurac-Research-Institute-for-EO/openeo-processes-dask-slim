@@ -15,6 +15,38 @@ __all__ = ["ndvi"]
 
 
 def ndvi(data: RasterCube, nir="nir", red="red", target_band=None):
+    if isinstance(data, xr.Dataset):
+        data_vars_list = list(data.data_vars)
+        if nir not in data_vars_list and red not in data_vars_list:
+            available = list(data.data_vars)
+            raise NirBandAmbiguous(
+                f"NIR band '{nir}' and red band '{red}' not found in data variables: {available}"
+            )
+        if nir not in data_vars_list:
+            raise NirBandAmbiguous(
+                f"NIR band '{nir}' not found in data variables: {list(data.data_vars)}"
+            )
+        if red not in data_vars_list:
+            raise RedBandAmbiguous(
+                f"Red band '{red}' not found in data variables: {list(data.data_vars)}"
+            )
+
+        nir_band = data[nir]
+        red_band = data[red]
+        nd = normalized_difference(nir_band, red_band)
+
+        if target_band is not None:
+            if target_band in data.data_vars or target_band in data.coords:
+                raise BandExists("A band with the specified target name exists.")
+            nd_ds = nd.to_dataset(name=target_band)
+            result = xr.merge([data, nd_ds])
+            result.attrs = data.attrs
+            return result
+
+        result = nd.to_dataset(name="ndvi")
+        result.attrs = data.attrs
+        return result
+
     if len(data.openeo.band_dims) == 0:
         raise DimensionAmbiguous(
             "Dimension of type `bands` is not available or is ambiguous."
@@ -53,7 +85,7 @@ def ndvi(data: RasterCube, nir="nir", red="red", target_band=None):
 
     nd = normalized_difference(nir_band, red_band)
     if target_band is not None:
-        if target_band in data.coords:
+        if target_band in data.coords or target_band in data.dims:
             raise BandExists("A band with the specified target name exists.")
         nd = nd.expand_dims(band_dim).assign_coords({band_dim: [target_band]})
         nd = xr.merge([data, nd])

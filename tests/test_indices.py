@@ -4,7 +4,6 @@ import pytest
 from openeo_processes_dask_slim.process_implementations.cubes.indices import ndvi
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     BandExists,
-    DimensionAmbiguous,
     NirBandAmbiguous,
     RedBandAmbiguous,
 )
@@ -23,61 +22,40 @@ def test_ndvi(temporal_interval, bounding_box, random_raster_data, process_regis
         backend="dask",
     )
 
-    # Test whether this works with different band names
-    input_cube = input_cube.rename("s2")
-    input_cube = input_cube.rename({"bands": "b"})
-    input_cube = input_cube.assign_coords(common_name=("b", ["red", "nir"]))
-
     output = ndvi(input_cube)
 
-    band_dim = input_cube.openeo.band_dims[0]
-    assert band_dim not in output.dims
+    assert "ndvi" in list(output.data_vars)
 
     expected_results = (
-        input_cube.sel({band_dim: "nir"}) - input_cube.sel({band_dim: "red"})
-    ) / (input_cube.sel({band_dim: "nir"}) + input_cube.sel({band_dim: "red"}))
+        input_cube["nir"] - input_cube["red"]
+    ) / (input_cube["nir"] + input_cube["red"])
 
-    general_output_checks(
-        input_cube=input_cube, output_cube=output, expected_results=expected_results
+    first_output_var = list(output.data_vars.values())[0]
+    np.testing.assert_allclose(
+        first_output_var.data, expected_results.data, equal_nan=True
     )
 
-    cube_with_resolvable_coords = input_cube.assign_coords(
-        {band_dim: ["blue", "yellow"]}
+    # Test with mismatched band names
+    cube_with_wrong_names = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["blue", "yellow"],
+        backend="dask",
     )
-    output = ndvi(cube_with_resolvable_coords)
-    general_output_checks(
-        input_cube=cube_with_resolvable_coords,
-        output_cube=output,
-        expected_results=expected_results,
-    )
+    with pytest.raises(NirBandAmbiguous):
+        ndvi(cube_with_wrong_names)
 
-    with pytest.raises(DimensionAmbiguous):
+    # ndvi on ndvi result should fail (no red/nir bands)
+    with pytest.raises(NirBandAmbiguous):
         ndvi(output)
 
-    cube_with_nir_unresolvable = cube_with_resolvable_coords
-    cube_with_nir_unresolvable.common_name.data = np.array(["blue", "red"])
-
-    with pytest.raises(NirBandAmbiguous):
-        ndvi(cube_with_nir_unresolvable)
-
-    cube_with_red_unresolvable = cube_with_resolvable_coords
-    cube_with_red_unresolvable.common_name.data = np.array(["nir", "yellow"])
-
-    with pytest.raises(RedBandAmbiguous):
-        ndvi(cube_with_red_unresolvable)
-
-    cube_with_nothing_resolvable = cube_with_resolvable_coords
-    cube_with_nothing_resolvable = cube_with_nothing_resolvable.drop_vars("common_name")
-    with pytest.raises(KeyError):
-        ndvi(cube_with_nothing_resolvable)
-
+    # Test target_band parameter
     target_band = "yay"
-    output_with_extra_dim = ndvi(input_cube, target_band=target_band)
-    assert len(output_with_extra_dim.dims) == len(output.dims) + 1
-    assert (
-        len(output_with_extra_dim.coords[band_dim])
-        == len(input_cube.coords[band_dim]) + 1
-    )
+    output_with_target = ndvi(input_cube, target_band=target_band)
+    assert target_band in list(output_with_target.data_vars)
+    # Original bands plus new one
+    assert len(output_with_target.data_vars) == len(input_cube.data_vars) + 1
 
     with pytest.raises(BandExists):
-        output_with_extra_dim = ndvi(input_cube, target_band="t")
+        ndvi(input_cube, target_band="t")

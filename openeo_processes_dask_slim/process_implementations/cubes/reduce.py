@@ -1,11 +1,20 @@
 from typing import Callable, Optional
 
 import numpy as np
+import xarray as xr
 
-from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
+from openeo_processes_dask_slim.process_implementations.data_model import (
+    RasterCube,
+    _stack_bands,
+)
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
 )
+
+try:
+    from numpy._core._exceptions import UFuncTypeError
+except ImportError:
+    from numpy.core._exceptions import UFuncTypeError
 
 __all__ = ["reduce_dimension", "reduce_spatial"]
 
@@ -16,6 +25,11 @@ def reduce_dimension(
     dimension: str,
     context: Optional[dict] = None,
 ) -> RasterCube:
+    if dimension == "bands" and isinstance(data, xr.Dataset):
+        stacked = _stack_bands(data)
+        result = reduce_dimension(stacked, reducer, dimension, context)
+        return result
+
     if dimension not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
@@ -40,7 +54,7 @@ def reduce_dimension(
         reduced_data.attrs["reduced_dimensions_min_values"][dimension] = data.coords[
             dimension
         ].values.min()
-    except np.core._exceptions.UFuncTypeError as e:
+    except (UFuncTypeError, AttributeError):
         reduced_data.attrs["reduced_dimensions_min_values"][dimension] = 0
 
     return reduced_data

@@ -16,6 +16,12 @@ def apply_neighborhood_intertwin(
     overlap: Optional[dict[int]] = None,
     context: Optional[dict] = None,
 ) -> RasterCube:
+    for dim, s in size.items():
+        if dim in data.dims and data.sizes[dim] == 0:
+            raise ValueError(
+                f"Cannot apply neighborhood operation on dimension '{dim}' with size 0."
+            )
+
     positional_parameters = {"data": 0}
     named_parameters = {"context": context}
 

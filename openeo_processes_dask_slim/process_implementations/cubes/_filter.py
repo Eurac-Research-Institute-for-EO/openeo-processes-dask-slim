@@ -11,7 +11,10 @@ import shapely
 import xarray as xr
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 
-from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
+from openeo_processes_dask_slim.process_implementations.data_model import (
+    RasterCube,
+    select_bands,
+)
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     BandFilterParameterMissing,
     DimensionMissing,
@@ -103,6 +106,23 @@ def filter_temporal(
 def filter_labels(
     data: RasterCube, condition: Callable, dimension: str, context: Optional[Any] = None
 ) -> RasterCube:
+    if dimension == "bands":
+        labels = list(data.data_vars)
+        if not context:
+            context = {}
+        positional_parameters = {"x": 0, "value": 0}
+        named_parameters = {"x": labels, "value": labels, "context": context}
+        filter_condition = np.vectorize(condition)
+        filtered_labels = filter_condition(
+            labels,
+            positional_parameters=positional_parameters,
+            named_parameters=named_parameters,
+        )
+        selected = [labels[i] for i in np.argwhere(filtered_labels).flatten()]
+        if not selected:
+            raise ValueError("No bands matched the filter condition.")
+        return data[selected]
+
     if dimension not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
@@ -129,6 +149,9 @@ def filter_bands(data: RasterCube, bands: list[str] = None) -> RasterCube:
         raise BandFilterParameterMissing(
             "The process `filter_bands` requires the parameters `bands` to be set."
         )
+
+    if isinstance(data, xr.Dataset):
+        return select_bands(data, bands)
 
     if len(data.openeo.band_dims) < 1:
         raise DimensionMissing("A band dimension is missing.")

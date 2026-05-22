@@ -47,20 +47,26 @@ def create_fake_rastercube(
             periods=data.shape[2],
         ).values
 
-    coords = {"x": x_coords, "y": y_coords, "t": t_coords, "bands": bands}
+    # Original data shape: (x, y, t, bands)
+    # Dataset model: bands are data vars with shape (t, y, x)
+    var_chunks = chunks[:3] if len(chunks) >= 3 else chunks
+    data_vars = {}
+    for i, band in enumerate(bands):
+        band_data = np.transpose(data[:, :, :, i], (2, 1, 0))  # (x, y, t) -> (t, y, x)
+        if "dask" in backend:
+            import dask.array as da
+            band_data = da.from_array(band_data, chunks=var_chunks)
+        data_vars[band] = (("t", "y", "x"), band_data)
 
-    raster_cube = xr.DataArray(
-        data=data,
+    coords = {"x": x_coords, "y": y_coords, "t": t_coords}
+
+    raster_cube = xr.Dataset(
+        data_vars=data_vars,
         coords=coords,
         attrs={"crs": spatial_extent.crs},
     )
     import odc.geo.xr
 
     raster_cube = odc.geo.xr.assign_crs(raster_cube, crs=spatial_extent.crs)
-
-    if "dask" in backend:
-        import dask.array as da
-
-        raster_cube.data = da.from_array(raster_cube.data, chunks=chunks)
 
     return raster_cube

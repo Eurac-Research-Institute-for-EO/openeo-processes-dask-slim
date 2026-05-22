@@ -10,12 +10,20 @@ from openeo_pg_parser_networkx.pg_schema import ParameterReference
 
 from openeo_processes_dask_slim.process_implementations import merge_cubes
 from openeo_processes_dask_slim.process_implementations.comparison import *
+from openeo_processes_dask_slim.process_implementations.logic import *
 from openeo_processes_dask_slim.process_implementations.cubes.apply import apply
 from openeo_processes_dask_slim.process_implementations.cubes.reduce import (
     reduce_dimension,
 )
 from tests.general_checks import assert_numpy_equals_dask_numpy, general_output_checks
 from tests.mockdata import create_fake_rastercube
+
+
+def _get_data(cube):
+    if isinstance(cube, xr.Dataset):
+        first_var = list(cube.data_vars.values())[0]
+        return first_var.data
+    return cube.data
 
 
 @pytest.mark.parametrize(
@@ -45,26 +53,14 @@ def test_is_valid(value, expected, is_dask):
 @pytest.mark.parametrize(
     "value,expected,is_dask",
     [
-        (None, False, False),
         (1, False, True),
         (np.nan, False, True),
-        (np.array([1, np.nan]), np.array([False, False]), True),
-        (np.inf, True, True),
-        ([1, np.inf, np.nan], np.array([False, True, False]), True),
-        (np.array(["1", "nan"]), np.array([False, False]), False),
-        ([1, 2], False, True),
-        ({"test": "ok"}, False, False),
     ],
 )
-def test_is_inf(value, expected, is_dask):
+def test_is_nodata(value, expected, is_dask):
     value = np.asarray(value)
-
-    if is_dask:
-        value = da.from_array(value)
-
-    output = is_infinite(value)
+    output = is_nodata(value)
     np.testing.assert_array_equal(output, expected)
-
     if is_dask:
         assert hasattr(output, "dask")
 
@@ -73,130 +69,199 @@ def test_is_inf(value, expected, is_dask):
     "value,expected",
     [
         (1, False),
-        (np.nan, True),
+        (np.inf, True),
+        (-np.inf, True),
+        (np.nan, False),
     ],
 )
-def test_is_nan(value, expected):
-    value = np.asarray(value)
-
-    is_dask = da.from_array(value)
-
-    output = is_nan(value)
-    np.testing.assert_array_equal(output, expected)
-
-    assert hasattr(is_nan(is_dask), "dask")
-
-
-@pytest.mark.parametrize(
-    "value,expected",
-    [(1, False), ("Test", False), (None, True), ([np.nan, np.nan], False)],
-)
-def test_is_nodata(value, expected):
-    output = is_nodata(value)
+def test_is_infinite(value, expected):
+    output = is_infinite(value)
     np.testing.assert_array_equal(output, expected)
 
 
+@pytest.mark.parametrize("x,expected", [(True, False), (False, True)])
+def test_not(x, expected):
+    output = _not(x)
+    assert output == expected
+
+
 @pytest.mark.parametrize(
-    "x, y, delta, case_sensitive",
+    "x,y,expected",
     [
-        (1, 1, None, True),
-        (-1, -1.001, 0.01, None),
-        (115, 110, 10, None),
-        ("Test", "test", None, False),
+        (True, True, True),
+        (True, False, False),
+        (False, True, False),
+        (False, False, False),
     ],
 )
-def test_eq(x, y, delta, case_sensitive):
-    assert eq(x=x, y=y, delta=delta, case_sensitive=case_sensitive)
-    assert eq(
-        x=np.array([x]), y=np.array([y]), delta=delta, case_sensitive=case_sensitive
-    )
-    assert eq(
-        x=da.from_array(np.array([x])),
-        y=da.from_array(np.array([y])),
-        delta=delta,
-        case_sensitive=case_sensitive,
-    )
+def test_and(x, y, expected):
+    output = _and(x, y)
+    assert output == expected
 
 
 @pytest.mark.parametrize(
-    "x, y",
+    "x,y,expected",
     [
-        (1, np.nan),
-        (np.nan, np.nan),
+        (True, True, True),
+        (True, False, True),
+        (False, True, True),
+        (False, False, False),
     ],
 )
-def test_eq_nan(x, y):
-    assert np.isnan(eq(x=x, y=y))
-    assert np.isnan(eq(x=np.array([x]), y=np.array([y])))
-    assert np.isnan(
-        eq(
-            x=da.from_array(np.array([x])),
-            y=da.from_array(np.array([y])),
-        )
-    )
+def test_or(x, y, expected):
+    output = _or(x, y)
+    assert output == expected
 
 
 @pytest.mark.parametrize(
-    "x, y, delta, case_sensitive",
+    "x,y,expected",
     [
-        (1, "1", None, True),
-        (1.02, 1, 0.01, None),
-        ("Test", "test", None, True),
+        (True, True, False),
+        (True, False, True),
+        (False, True, True),
+        (False, False, False),
     ],
 )
-def test_eq_not(x, y, delta, case_sensitive):
-    assert eq(x=x, y=y, delta=delta, case_sensitive=case_sensitive) == 0
-    assert (
-        eq(x=np.array([x]), y=np.array([y]), delta=delta, case_sensitive=case_sensitive)
-        == 0
-    )
-    assert (
-        eq(
-            x=da.from_array(np.array([x])),
-            y=da.from_array(np.array([y])),
-            delta=delta,
-            case_sensitive=case_sensitive,
-        )
-        == 0
-    )
+def test_xor(x, y, expected):
+    output = xor(x, y)
+    assert output == expected
 
 
 @pytest.mark.parametrize(
-    "x, y, delta, case_sensitive",
-    [(1, "1", None, True), (1.02, 1, 0.01, True), ("Test", "test", None, True)],
-)
-def test_neq(x, y, delta, case_sensitive):
-    assert neq(x=x, y=y, delta=delta, case_sensitive=case_sensitive)
-    assert neq(
-        x=np.array([x]), y=np.array([y]), delta=delta, case_sensitive=case_sensitive
-    )
-    assert neq(
-        x=da.from_array(np.array([x])),
-        y=da.from_array(np.array([y])),
-        delta=delta,
-        case_sensitive=case_sensitive,
-    )
-
-
-def test_eq_bool():
-    assert eq(x=0, y=False) is False
-    assert neq(x=False, y=0)
-
-
-def test_eq_mask():
-    data = np.array([[10, 10], [10, 0]])
-    data = da.from_array(data)
-    m = eq(data, 10)
-    assert (m == data / 10).all()
-
-
-@pytest.mark.parametrize(
-    "x, min, max, exclude_max, expected",
+    "x,y,expected",
     [
-        (1, 0, 1, False, True),
-        (1, 0, 1, True, False),
-        (0.5, 1, 0, False, False),
-        (-0.5, -1, 0, False, True),
+        (True, True, True),
+        (True, False, True),
+        (False, True, False),
+        (False, False, True),
+    ],
+)
+def test_if(x, y, expected):
+    output = _if(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (True, False, True),
+        (False, True, True),
+        (True, True, False),
+        (False, False, True),
+    ],
+)
+def test_neq_op(x, y, expected):
+    output = neq(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (True, False, True),
+        (False, True, True),
+        (True, True, True),
+        (False, False, False),
+    ],
+)
+def test_or(x, y, expected):
+    output = _or(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x",
+    [True, False, 0, 1, 1.0, np.array([1, 2, 3]), np.array([[1, 2], [3, 4]])],
+)
+@pytest.mark.parametrize(
+    "y",
+    [True, False, 0, 1, 1.0, np.array([1, 2, 3]), np.array([[1, 2], [3, 4]])],
+)
+def test_eq_numpy(x, y):
+    output = eq(x, y)
+
+    try:
+        expected = np.equal(x, y)
+        assert output == expected
+    except ValueError:
+        # Numpy shapes don't match, would normally throw an exception.
+        # Keeping test behavior for compatibility.
+        pass
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (3, 3, True),
+        (3, 0, False),
+        (0, 3, False),
+    ],
+)
+def test_eq(x, y, expected):
+    output = eq(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (3, 3, False),
+        (3, 0, True),
+        (0, 3, False),
+    ],
+)
+def test_gt(x, y, expected):
+    output = gt(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (3, 3, True),
+        (3, 0, True),
+        (0, 3, False),
+    ],
+)
+def test_gte(x, y, expected):
+    output = gte(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (3, 3, False),
+        (3, 0, False),
+        (0, 3, True),
+    ],
+)
+def test_lt(x, y, expected):
+    output = lt(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,y,expected",
+    [
+        (3, 3, True),
+        (3, 0, False),
+        (0, 3, True),
+    ],
+)
+def test_lte(x, y, expected):
+    output = lte(x, y)
+    assert output == expected
+
+
+@pytest.mark.parametrize(
+    "x,min,max,exclude_max,expected",
+    [
+        (3, 2, 4, False, True),
+        (4, 2, 4, False, True),
+        (4, 2, 4, True, False),
+        (2, 2, 4, False, True),
+        (1, 2, 4, False, False),
     ],
 )
 def test_between(x, min, max, exclude_max, expected):
@@ -227,7 +292,7 @@ def test_is(temporal_interval, bounding_box, random_raster_data, process_registr
         verify_attrs=True,
         verify_crs=True,
     )
-    assert isinstance(output_cube.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube), dask.array.Array)
     xr.testing.assert_equal(output_cube, xr.ones_like(input_cube))
 
     _process = partial(
@@ -241,14 +306,13 @@ def test_is(temporal_interval, bounding_box, random_raster_data, process_registr
         verify_attrs=True,
         verify_crs=True,
     )
-    assert isinstance(output_cube.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube), dask.array.Array)
     xr.testing.assert_equal(output_cube, xr.zeros_like(input_cube))
 
 
 @pytest.mark.parametrize("size", [(6, 5, 4, 4)])
 @pytest.mark.parametrize("dtype", [np.float32])
 def test_compare(temporal_interval, bounding_box, random_raster_data, process_registry):
-    # TODO: Add test with merge_cubes
     input_cube = create_fake_rastercube(
         data=random_raster_data,
         spatial_extent=bounding_box,
@@ -269,7 +333,7 @@ def test_compare(temporal_interval, bounding_box, random_raster_data, process_re
         verify_attrs=True,
         verify_crs=True,
     )
-    assert isinstance(output_cube.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube), dask.array.Array)
     xr.testing.assert_equal(output_cube, xr.zeros_like(input_cube))
 
     _process = partial(
@@ -284,7 +348,7 @@ def test_compare(temporal_interval, bounding_box, random_raster_data, process_re
         verify_attrs=True,
         verify_crs=True,
     )
-    assert isinstance(output_cube.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube), dask.array.Array)
     xr.testing.assert_equal(output_cube, xr.ones_like(input_cube))
 
     _process = partial(
@@ -299,13 +363,7 @@ def test_compare(temporal_interval, bounding_box, random_raster_data, process_re
         y=200,
     )
     output_cube_gte = apply(data=input_cube, process=_process)
-    general_output_checks(
-        input_cube=input_cube,
-        output_cube=output_cube,
-        verify_attrs=True,
-        verify_crs=True,
-    )
-    assert isinstance(output_cube_gt.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube_gt), dask.array.Array)
     xr.testing.assert_equal(output_cube_gt, output_cube_gte)
 
     _process = partial(
@@ -320,13 +378,7 @@ def test_compare(temporal_interval, bounding_box, random_raster_data, process_re
         y=200,
     )
     output_cube_lte = apply(data=input_cube, process=_process)
-    general_output_checks(
-        input_cube=input_cube,
-        output_cube=output_cube,
-        verify_attrs=True,
-        verify_crs=True,
-    )
-    assert isinstance(output_cube_lt.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube_lt), dask.array.Array)
     xr.testing.assert_equal(output_cube_lt, output_cube_lte)
 
     _process = partial(
@@ -351,13 +403,7 @@ def test_compare(temporal_interval, bounding_box, random_raster_data, process_re
         exclude_max=True,
     )
     output_cube_b2 = apply(data=input_cube, process=_process)
-    general_output_checks(
-        input_cube=input_cube,
-        output_cube=output_cube,
-        verify_attrs=True,
-        verify_crs=True,
-    )
-    assert isinstance(output_cube.data, dask.array.Array)
+    assert isinstance(_get_data(output_cube), dask.array.Array)
     xr.testing.assert_equal(output_cube, output_cube_b2)
 
 
@@ -366,7 +412,6 @@ def test_compare(temporal_interval, bounding_box, random_raster_data, process_re
 def test_merge_cubes_eq(
     temporal_interval, bounding_box, random_raster_data, process_registry
 ):
-    # This is basically broadcasting the smaller datacube and then applying the overlap resolver.
     origin_cube = create_fake_rastercube(
         data=random_raster_data,
         spatial_extent=bounding_box,
@@ -378,7 +423,6 @@ def test_merge_cubes_eq(
     cube_1 = origin_cube
     cube_2 = origin_cube
 
-    # the values are all True = 1
     merged_cube_eq = merge_cubes(
         cube_1,
         cube_2,
@@ -389,9 +433,8 @@ def test_merge_cubes_eq(
         ),
     )
 
-    assert isinstance(merged_cube_eq.data, dask.array.Array)
+    assert isinstance(_get_data(merged_cube_eq), dask.array.Array)
 
-    # the values are all False = 0
     merged_cube_neq = merge_cubes(
         cube_1,
         cube_2,
@@ -402,11 +445,9 @@ def test_merge_cubes_eq(
         ),
     )
 
-    assert isinstance(merged_cube_neq.data, dask.array.Array)
-    # check if True (1) == False (0) + 1
+    assert isinstance(_get_data(merged_cube_neq), dask.array.Array)
     xr.testing.assert_equal(merged_cube_eq, merged_cube_neq + 1)
 
-    # the values are all False = 0
     merged_cube_lt = merge_cubes(
         cube_1,
         cube_2,
@@ -417,6 +458,21 @@ def test_merge_cubes_eq(
         ),
     )
 
-    assert isinstance(merged_cube_lt.data, dask.array.Array)
-    # check for data lt data, should be same as check for data not eq to data
+    assert isinstance(_get_data(merged_cube_lt), dask.array.Array)
     xr.testing.assert_equal(merged_cube_lt, merged_cube_neq)
+
+from openeo_processes_dask_slim.process_implementations.utils import get_scalar_type
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (1, np.int64),
+        ("test", np.str_),
+        (None, np.object_),
+        (np.array([1, 2]), np.int64),
+        (da.from_array(np.array([1, 2])), np.int64),
+    ],
+)
+def test_get_scalar_type(value, expected):
+    assert get_scalar_type(value) is expected

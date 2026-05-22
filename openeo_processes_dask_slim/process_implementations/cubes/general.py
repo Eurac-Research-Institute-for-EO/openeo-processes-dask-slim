@@ -36,7 +36,7 @@ def drop_dimension(data: RasterCube, name: str) -> RasterCube:
 
 
 def create_data_cube() -> RasterCube:
-    return xr.DataArray()
+    return xr.Dataset()
 
 
 def trim_cube(data) -> RasterCube:
@@ -48,7 +48,17 @@ def trim_cube(data) -> RasterCube:
         ):
             values = data[dim].values
             other_dims = [d for d in data.dims if d != dim]
-            available_data = values[(np.isnan(data)).all(dim=other_dims) == 0]
+            if isinstance(data, xr.Dataset):
+                any_valid = None
+                for var_name in data.data_vars:
+                    var_valid = data[var_name].notnull().any(dim=other_dims)
+                    if any_valid is None:
+                        any_valid = var_valid
+                    else:
+                        any_valid = any_valid | var_valid
+                available_data = values[any_valid.values]
+            else:
+                available_data = values[(np.isnan(data)).all(dim=other_dims) == 0]
             if len(available_data) == 0:
                 raise ValueError(f"Data contains NaN values only. ")
             data = data.sel({dim: available_data})
@@ -57,6 +67,9 @@ def trim_cube(data) -> RasterCube:
 
 
 def dimension_labels(data: RasterCube, dimension: str) -> ArrayLike:
+    if dimension == "bands":
+        return list(data.data_vars)
+
     if dimension not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
@@ -125,6 +138,11 @@ def rename_dimension(
        The dimension properties (name, type, labels, reference system and resolution)
        remain unchanged.
     """
+    if source == "bands":
+        raise DimensionNotAvailable(
+            f"The virtual 'bands' dimension cannot be renamed. "
+            f"Use rename_labels with dimension='bands' to rename band variables instead."
+        )
     if source not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({source}) not found in data.dims: {data.dims}"
@@ -154,6 +172,28 @@ def rename_labels(
     source: Optional[list[Union[str, float]]] = [],
 ):
     data_rename = copy.deepcopy(data)
+
+    if dimension == "bands":
+        current_bands = list(data_rename.data_vars)
+        if len(source) > 0:
+            if len(source) != len(target):
+                raise Exception(
+                    f"LabelMismatch - The number of labels in the parameters `source` and `target` don't match."
+                )
+            for s in source:
+                if s not in current_bands:
+                    raise Exception(
+                        f"LabelNotAvailable - A label with the specified name does not exist."
+                    )
+            mapping = dict(zip(source, target))
+        else:
+            if len(current_bands) != len(target):
+                raise Exception(
+                    f"LabelMismatch - The number of labels in the parameters `source` and `target` don't match."
+                )
+            mapping = dict(zip(current_bands, target))
+        return data_rename.rename(mapping)
+
     if dimension not in data_rename.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data_rename.dims}"
