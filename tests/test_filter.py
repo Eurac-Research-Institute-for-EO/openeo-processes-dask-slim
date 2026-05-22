@@ -156,3 +156,43 @@ def test_filter_bbox(
 
     with pytest.raises(DimensionNotAvailable):
         filter_bbox(data=output_cube_cube_no_x_y, extent=bounding_box_small)
+
+
+@pytest.mark.parametrize("size", [(30, 30, 30, 4)])
+@pytest.mark.parametrize("dtype", [np.uint8])
+def test_filter_bands_dataset(temporal_interval, bounding_box, random_raster_data):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    output_cube = filter_bands(data=input_cube, bands=["B02", "B04"])
+    assert set(output_cube.data_vars) == {"B02", "B04"}
+
+    with pytest.raises(Exception):
+        filter_bands(data=input_cube, bands=["nonexistent"])
+
+
+@pytest.mark.parametrize("size", [(30, 30, 30, 4)])
+@pytest.mark.parametrize("dtype", [np.uint8])
+def test_filter_temporal_dataset(temporal_interval, bounding_box, random_raster_data):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    temporal_interval_part = TemporalInterval.model_validate(
+        ["2018-05-15T00:00:00", "2018-06-01T00:00:00"]
+    )
+    output_cube = filter_temporal(data=input_cube, extent=temporal_interval_part)
+
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    assert len(output_cube.t) < len(input_cube.t)

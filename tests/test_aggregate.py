@@ -180,3 +180,30 @@ def test_aggregate_temporal_period_numpy_equals_dask(
     assert_numpy_equals_dask_numpy(
         numpy_cube=numpy_cube, dask_cube=dask_cube, func=func
     )
+
+
+@pytest.mark.parametrize("size", [(6, 5, 100, 4)])
+@pytest.mark.parametrize("dtype", [np.float64])
+def test_aggregate_temporal_period_dataset(
+    temporal_interval, bounding_box, random_raster_data, process_registry
+):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    reducer = partial(
+        process_registry["mean"].implementation,
+        data=ParameterReference(from_parameter="data"),
+    )
+
+    output_cube = aggregate_temporal_period(
+        data=input_cube, reducer=reducer, period="hour"
+    )
+
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    assert "t" in output_cube.dims

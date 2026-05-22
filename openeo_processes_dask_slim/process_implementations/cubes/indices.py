@@ -15,6 +15,27 @@ __all__ = ["ndvi"]
 
 
 def ndvi(data: RasterCube, nir="nir", red="red", target_band=None):
+    if isinstance(data, xr.Dataset):
+        if nir not in data.data_vars:
+            raise NirBandAmbiguous(
+                "The NIR band can't be resolved, please specify the specific NIR band name."
+            )
+        if red not in data.data_vars:
+            raise RedBandAmbiguous(
+                "The Red band can't be resolved, please specify the specific Red band name."
+            )
+        nir_band = data[nir]
+        red_band = data[red]
+        nd = normalized_difference(nir_band, red_band)
+        if target_band is not None:
+            if target_band in data.data_vars:
+                raise BandExists("A band with the specified target name exists.")
+            nd = data.assign({target_band: nd})
+        else:
+            nd = nd.to_dataset(name="ndvi")
+        nd.attrs = data.attrs
+        return nd
+
     if len(data.openeo.band_dims) == 0:
         raise DimensionAmbiguous(
             "Dimension of type `bands` is not available or is ambiguous."

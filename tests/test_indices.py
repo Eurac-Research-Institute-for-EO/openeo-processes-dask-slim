@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import xarray as xr
 
 from openeo_processes_dask_slim.process_implementations.cubes.indices import ndvi
 from openeo_processes_dask_slim.process_implementations.exceptions import (
@@ -81,3 +82,32 @@ def test_ndvi(temporal_interval, bounding_box, random_raster_data, process_regis
 
     with pytest.raises(BandExists):
         output_with_extra_dim = ndvi(input_cube, target_band="t")
+
+
+@pytest.mark.parametrize("size", [(20, 20, 10, 2)])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_ndvi_dataset(temporal_interval, bounding_box, random_raster_data):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["red", "nir"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    output = ndvi(input_cube)
+    assert "ndvi" in output.data_vars
+    expected = (input_cube["nir"] - input_cube["red"]) / (
+        input_cube["nir"] + input_cube["red"]
+    )
+    xr.testing.assert_allclose(output["ndvi"], expected)
+
+    output_with_target = ndvi(input_cube, target_band="ndvi_custom")
+    assert "ndvi_custom" in output_with_target.data_vars
+
+    with pytest.raises(NirBandAmbiguous):
+        ndvi(input_cube, nir="nonexistent")
+
+    with pytest.raises(RedBandAmbiguous):
+        ndvi(input_cube, red="nonexistent")

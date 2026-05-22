@@ -130,6 +130,14 @@ def filter_bands(data: RasterCube, bands: list[str] = None) -> RasterCube:
             "The process `filter_bands` requires the parameters `bands` to be set."
         )
 
+    if isinstance(data, xr.Dataset):
+        missing = [b for b in bands if b not in data.data_vars]
+        if missing:
+            raise Exception(
+                f"The provided bands: {bands} are not all available in the datacube. Please modify the bands parameter of filter_bands and choose among: {list(data.data_vars)}."
+            )
+        return data[bands]
+
     if len(data.openeo.band_dims) < 1:
         raise DimensionMissing("A band dimension is missing.")
     band_dim = data.openeo.band_dims[0]
