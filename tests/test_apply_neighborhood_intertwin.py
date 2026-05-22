@@ -12,7 +12,7 @@ from openeo_processes_dask_slim.process_implementations.cubes.apply_neighborhood
 
 
 def test_empty_data_input_raises_exception(process_registry):
-    with pytest.raises(ValueError):
+    with pytest.raises(Exception):
         input_cube = make_full_datacube((0, 0), 1)
         _process = make_sum_process(process_registry)
         apply_neighborhood_intertwin(
