@@ -18,7 +18,7 @@ def test_mask_dataset(temporal_interval, bounding_box, random_raster_data):
         as_dataset=True,
     )
 
-    mask_data = (data_cube > 50)
+    mask_data = data_cube > 50
     output_cube = mask(data=data_cube, mask=mask_data, replacement=np.nan)
 
     assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}

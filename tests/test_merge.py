@@ -196,3 +196,31 @@ def test_merge_float_coord_alignment(bounding_box, temporal_interval):
 
     merged = merge_cubes(cube_a, cube_b)
     assert isinstance(merged, xr.DataArray)
+
+
+@pytest.mark.parametrize("size", [(6, 5, 4, 2)])
+@pytest.mark.parametrize("dtype", [np.float64])
+def test_merge_cubes_dataset(temporal_interval, bounding_box, random_raster_data):
+    cube_a = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    rng = np.random.default_rng(99)
+    cube_b_data = rng.integers(-100, 100, size=(6, 5, 4, 2)).astype(np.float64)
+    cube_b = create_fake_rastercube(
+        data=cube_b_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    merged = merge_cubes(cube_a, cube_b)
+    assert isinstance(merged, xr.Dataset)
+    assert set(merged.data_vars) == {"B02", "B03", "B04", "B08"}

@@ -64,6 +64,19 @@ def merge_cubes(
             f"Provided cubes have incompatible types. cube1: {type(cube1)}, cube2: {type(cube2)}"
         )
 
+    if isinstance(cube1, xr.Dataset):
+        if overlap_resolver is not None:
+            raise NotImplementedError(
+                "merge_cubes with overlap_resolver is not yet supported for Dataset inputs."
+            )
+        c1 = cube1.drop_vars(
+            [c for c in cube1.coords if c not in cube1.dims], errors="ignore"
+        )
+        c2 = cube2.drop_vars(
+            [c for c in cube2.coords if c not in cube2.dims], errors="ignore"
+        )
+        return xr.merge([c1, c2], compat="override")
+
     # Align coordinates if they're very close numerically
     cube1, cube2 = _align_coordinates(cube1, cube2)
 
