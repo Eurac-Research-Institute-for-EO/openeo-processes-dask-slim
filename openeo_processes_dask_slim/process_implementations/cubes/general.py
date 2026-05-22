@@ -164,11 +164,8 @@ def rename_labels(
                 f"LabelMismatch - The number of labels in the parameters `source` and `target` don't match."
             )
 
-    time = False
-    if dimension in data.openeo.temporal_dims:
-        time = True
-
     source_labels = data_rename[dimension].values
+    time = np.issubdtype(source_labels.dtype, np.datetime64)
     if time:
         source_labels = np.array(source_labels, dtype="datetime64[s]")
     elif np.issubdtype(source_labels.dtype, np.datetime64):

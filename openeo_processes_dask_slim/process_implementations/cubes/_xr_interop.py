@@ -21,6 +21,7 @@ BANDS_GUESSES = ["b", "bands", "band"]
 
 
 @xr.register_dataarray_accessor("openeo")
+@xr.register_dataset_accessor("openeo")
 class OpenEOExtensionDa:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj

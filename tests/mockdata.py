@@ -16,6 +16,7 @@ def create_fake_rastercube(
     bands: list,
     backend="numpy",
     chunks=("auto", "auto", "auto", -1),
+    as_dataset=False,
 ):
     # Calculate the desired resolution based on how many samples we desire on the longest axis.
     len_x = max(spatial_extent.west, spatial_extent.east) - min(
@@ -62,5 +63,8 @@ def create_fake_rastercube(
         import dask.array as da
 
         raster_cube.data = da.from_array(raster_cube.data, chunks=chunks)
+
+    if as_dataset:
+        raster_cube = raster_cube.to_dataset(dim="bands")
 
     return raster_cube
