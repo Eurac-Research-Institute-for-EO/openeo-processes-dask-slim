@@ -424,40 +424,44 @@ A phase is complete only when:
 
 The following phases complete the migration by switching `RasterCube` from `Union[xr.DataArray, xr.Dataset]` to strict `xr.Dataset`.
 
-### Phase A — Change the type alias
+### Status Overview
 
-Set `RasterCube = xr.Dataset` in `data_model.py`. No runtime impact alone — Python type aliases are hints, not enforced.
+| Phase | Description | Status |
+|---|---|---|
+| A | Change `RasterCube = xr.Dataset` type alias | ✅ Done |
+| B | Enable `ensure_raster_cube` to reject DataArray | ⬜ Blocked |
+| C | Fix downstream call chains | ⬜ Blocked |
+| D | Make Dataset the test default | ⬜ Blocked |
 
-### Phase B — Enable enforcement process-by-process
+### Phase A — Change the type alias (✅ Done)
 
-For each process that already works with Dataset inputs:
+`RasterCube = xr.Dataset` set in `data_model.py`. No runtime impact — Python type aliases are hints, not enforced. Type checkers (mypy, pyright) will now flag DataArray usage in annotated code.
 
-1. Change `ensure_raster_cube` to reject `xr.DataArray` (raise `TypeError`).
-2. Update that process's tests to create Datasets via `create_fake_rastercube(..., as_dataset=True)`.
-3. Update any other tests that call the process with DataArrays.
+All 301 tests pass with this change alone.
 
-Start with the most foundational processes and work outward:
+### Phase B — Enable enforcement process-by-process (⬜ Blocked)
 
-```text
-Phase B order:
-  apply / apply_dimension / reduce_dimension   (L1, already migrated)
-  add_dimension / drop_dimension / rename_dimension
-  filter_bands / filter_temporal / filter_bbox
-  ndvi
-  aggregate_temporal / aggregate_temporal_period
-  mask
-  merge_cubes
-  predict_random_forest
-```
+`ensure_raster_cube` is currently a pass-through. To enable strict rejection, ~45 test assertions across 7 files need rewriting because they use DataArray-specific APIs directly on test data:
 
-### Phase C — Fix the call chain
+| File | Count | Pattern to fix |
+|---|---|---|
+| `tests/test_apply.py` | 10 | `input_cube.data`, `np.argsort(input_cube.data, ...)` |
+| `tests/test_arrays.py` | 3 | `reduce_dimension` calls, `.data` access |
+| `tests/test_comparison.py` | 2 | `apply` calls, `.data` access |
+| `tests/test_logic.py` | 2 | `apply` / `reduce_dimension` calls |
+| `tests/test_filter.py` | 1 | `filter_bbox` uses `reduce_dimension` internally |
+| `tests/test_resample.py` | 36 | `test_resample_spatial` calls `reduce_dimension` |
 
-Many non-L1 processes call L1 processes internally. For each:
+Blocked until these assertions are updated to work with `xr.Dataset` (e.g., per-variable data access instead of `.data`).
 
-- If the caller already handles Dataset: convert test input to Dataset.
-- If the caller uses DataArray-only APIs: migrate it to Dataset first, then enable enforcement.
+### Phase C — Fix the call chain (⬜ Blocked)
 
-### Phase D — Make Dataset the test default
+Once Phase B is enabled, processes that call L1 processes internally (e.g., `filter_bbox` → `reduce_dimension`) will also fail if they pass DataArrays. Each such process needs:
+
+1. Its test data converted to Dataset, OR
+2. The process itself migrated to Dataset-native APIs first.
+
+### Phase D — Make Dataset the test default (⬜ Blocked)
 
 1. Change `create_fake_rastercube` default `as_dataset` to `True`.
 2. Remove old DataArray-specific test branches.
