@@ -40,7 +40,7 @@ def reduce_dimension(
         reduced_data.attrs["reduced_dimensions_min_values"][dimension] = data.coords[
             dimension
         ].values.min()
-    except np.core._exceptions.UFuncTypeError as e:
+    except TypeError:
         reduced_data.attrs["reduced_dimensions_min_values"][dimension] = 0
 
     return reduced_data
