@@ -6,6 +6,10 @@ except ImportError:
 from xarray.core.duck_array_ops import isnull as xr_isnull
 
 
+def ensure_raster_cube(data: object, process_name: str):
+    return data
+
+
 def _has_dask():
     return dask is not None
 

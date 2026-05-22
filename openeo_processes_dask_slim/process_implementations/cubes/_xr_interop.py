@@ -24,6 +24,10 @@ BANDS_GUESSES = ["b", "bands", "band"]
 class OpenEOExtensionDa:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
+        if hasattr(self._obj.dims, "keys"):
+            self._dims = list(self._obj.dims.keys())
+        else:
+            self._dims = list(self._obj.dims)
         self._spatial_dims = self._guess_dims_for_type(
             X_GUESSES
         ) + self._guess_dims_for_type(Y_GUESSES)
@@ -37,7 +41,7 @@ class OpenEOExtensionDa:
 
     @property
     def _lowercase_dims(self):
-        return [str(dim).casefold() for dim in self._obj.dims]
+        return [str(dim).casefold() for dim in self._dims]
 
     def _guess_dims_for_type(self, guesses):
         found_dims = []
@@ -45,7 +49,7 @@ class OpenEOExtensionDa:
         for guess in guesses:
             if guess in datacube_dims:
                 i = datacube_dims.index(guess)
-                found_dims.append(self._obj.dims[i])
+                found_dims.append(self._dims[i])
         return found_dims
 
     def _get_existing_dims_and_pop_missing(self, expected_dims):

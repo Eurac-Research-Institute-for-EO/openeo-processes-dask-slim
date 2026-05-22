@@ -4,6 +4,7 @@ from typing import List
 import dask.array as da
 import numpy as np
 import pyproj
+import xarray as xr
 
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
 
@@ -24,10 +25,15 @@ def general_output_checks(
     expected_dims: list = None,
     rtol=1e-06,
 ):
-    assert isinstance(output_cube.data, type(input_cube.data))
+    if isinstance(output_cube, xr.Dataset) and isinstance(input_cube, xr.Dataset):
+        assert set(output_cube.data_vars) == set(input_cube.data_vars)
+    else:
+        assert isinstance(output_cube.data, type(input_cube.data))
 
-    assert input_cube.openeo is not None
-    assert output_cube.openeo is not None
+    if hasattr(input_cube, "openeo"):
+        assert input_cube.openeo is not None
+    if hasattr(output_cube, "openeo"):
+        assert output_cube.openeo is not None
 
     if verify_crs:
         assert _get_crs(input_cube) == _get_crs(output_cube)
@@ -36,16 +42,32 @@ def general_output_checks(
         assert input_cube.attrs == output_cube.attrs
 
     if expected_results is not None:
-        if isinstance(output_cube.data, np.ndarray):
-            output_data = output_cube.data
-        elif isinstance(output_cube.data, da.Array):
-            output_data = output_cube.data.compute()
+        if isinstance(expected_results, xr.Dataset):
+            xr.testing.assert_allclose(output_cube, expected_results)
         else:
-            raise TypeError(f"Unsupported array type: {type(output_cube.data)}")
+            if isinstance(output_cube, xr.Dataset):
+                for var in output_cube.data_vars:
+                    np.testing.assert_allclose(
+                        output_cube[var].data
+                        if isinstance(output_cube[var].data, np.ndarray)
+                        else output_cube[var].data.compute(),
+                        expected_results[var].data
+                        if isinstance(expected_results[var].data, np.ndarray)
+                        else expected_results[var].data.compute(),
+                        equal_nan=True,
+                        rtol=rtol,
+                    )
+            else:
+                if isinstance(output_cube.data, np.ndarray):
+                    output_data = output_cube.data
+                elif isinstance(output_cube.data, da.Array):
+                    output_data = output_cube.data.compute()
+                else:
+                    raise TypeError(f"Unsupported array type: {type(output_cube.data)}")
 
-        np.testing.assert_allclose(
-            output_data, expected_results, equal_nan=True, rtol=rtol
-        )
+                np.testing.assert_allclose(
+                    output_data, expected_results, equal_nan=True, rtol=rtol
+                )
 
     if expected_dims is not None:
         actual_dims = output_cube.dims

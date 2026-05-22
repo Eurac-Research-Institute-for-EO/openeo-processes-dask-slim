@@ -1,7 +1,11 @@
 from typing import Callable, Optional
 
 import numpy as np
+import xarray as xr
 
+from openeo_processes_dask_slim.process_implementations.cubes.utils import (
+    ensure_raster_cube,
+)
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
@@ -16,6 +20,19 @@ def reduce_dimension(
     dimension: str,
     context: Optional[dict] = None,
 ) -> RasterCube:
+    data = ensure_raster_cube(data, "reduce_dimension")
+
+    if dimension == "bands" and isinstance(data, xr.Dataset):
+        positional_parameters = {"data": 0}
+        reduced_data = reducer(
+            data,
+            positional_parameters=positional_parameters,
+            context=context,
+        )
+        if not isinstance(reduced_data, xr.Dataset):
+            reduced_data = reduced_data.to_dataset(name="result")
+        return reduced_data
+
     if dimension not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
