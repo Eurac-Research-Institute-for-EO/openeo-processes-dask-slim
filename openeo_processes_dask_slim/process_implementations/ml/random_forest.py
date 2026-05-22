@@ -1,6 +1,7 @@
 from typing import List, Optional, Union
 
 import dask
+import dask.array as da
 import dask.distributed
 import dask_geopandas
 import geopandas as gpd
@@ -131,6 +132,25 @@ def predict_random_forest(
     if not model:
         if isinstance(context, dict) and "model" in context:
             model = context["model"]
+
+    if isinstance(data, xr.Dataset):
+        result_vars = {}
+        for name, var in data.data_vars.items():
+            var_data = var.data
+            n_features = len(model.feature_names)
+            if isinstance(var_data, da.Array):
+                var_data = var_data.compute()
+            if n_features != var_data.shape[axis]:
+                raise Exception(
+                    f"Number of predictors does not match number of features that were trained with."
+                )
+            X = np.moveaxis(var_data, axis, 0).reshape((n_features, -1)).transpose()
+            client = dask.distributed.default_client()
+            preds_flat = dxgb.inplace_predict(client, model, X)
+            output_shape = list(var_data.shape)
+            output_shape[axis] = 1
+            result_vars[name] = (var.dims, preds_flat.reshape(tuple(output_shape)))
+        return xr.Dataset(result_vars, coords=data.coords, attrs=data.attrs)
 
     n_features = len(model.feature_names)
     if n_features != data.shape[axis]:
