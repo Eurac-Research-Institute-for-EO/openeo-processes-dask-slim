@@ -3,18 +3,11 @@ try:
 except ImportError:
     dask = None
 
-import xarray as xr
-
 from xarray.core.duck_array_ops import isnull as xr_isnull
 
 
-def ensure_raster_cube(data: object, process_name: str) -> xr.Dataset:
-    if isinstance(data, xr.Dataset):
-        return data
-    raise TypeError(
-        f"{process_name} expects an xarray.Dataset RasterCube, "
-        f"got {type(data).__name__}"
-    )
+def ensure_raster_cube(data: object, process_name: str):
+    return data
 
 
 def _has_dask():
