@@ -25,8 +25,9 @@ def general_output_checks(
     expected_dims: list = None,
     rtol=1e-06,
 ):
-    if isinstance(output_cube, xr.Dataset) and isinstance(input_cube, xr.Dataset):
-        assert set(output_cube.data_vars) == set(input_cube.data_vars)
+    if isinstance(output_cube, xr.Dataset):
+        if isinstance(input_cube, xr.Dataset):
+            assert set(output_cube.data_vars) == set(input_cube.data_vars)
     else:
         assert isinstance(output_cube.data, type(input_cube.data))
 
@@ -42,32 +43,25 @@ def general_output_checks(
         assert input_cube.attrs == output_cube.attrs
 
     if expected_results is not None:
-        if isinstance(expected_results, xr.Dataset):
+        if isinstance(output_cube, xr.Dataset):
+            if not isinstance(expected_results, xr.Dataset):
+                if "bands" in expected_results.dims:
+                    expected_results = expected_results.to_dataset(dim="bands")
+                else:
+                    expected_results = expected_results.to_dataset(name="result")
+            xr.testing.assert_allclose(output_cube, expected_results)
+        elif isinstance(expected_results, xr.Dataset):
             xr.testing.assert_allclose(output_cube, expected_results)
         else:
-            if isinstance(output_cube, xr.Dataset):
-                for var in output_cube.data_vars:
-                    np.testing.assert_allclose(
-                        output_cube[var].data
-                        if isinstance(output_cube[var].data, np.ndarray)
-                        else output_cube[var].data.compute(),
-                        expected_results[var].data
-                        if isinstance(expected_results[var].data, np.ndarray)
-                        else expected_results[var].data.compute(),
-                        equal_nan=True,
-                        rtol=rtol,
-                    )
+            if isinstance(output_cube.data, np.ndarray):
+                output_data = output_cube.data
+            elif isinstance(output_cube.data, da.Array):
+                output_data = output_cube.data.compute()
             else:
-                if isinstance(output_cube.data, np.ndarray):
-                    output_data = output_cube.data
-                elif isinstance(output_cube.data, da.Array):
-                    output_data = output_cube.data.compute()
-                else:
-                    raise TypeError(f"Unsupported array type: {type(output_cube.data)}")
-
-                np.testing.assert_allclose(
-                    output_data, expected_results, equal_nan=True, rtol=rtol
-                )
+                raise TypeError(f"Unsupported array type: {type(output_cube.data)}")
+            np.testing.assert_allclose(
+                output_data, expected_results, equal_nan=True, rtol=rtol
+            )
 
     if expected_dims is not None:
         actual_dims = output_cube.dims
