@@ -161,6 +161,12 @@ def apply_kernel(
 
         data_masked = data.fillna(fill_value)
 
+        dtype = (
+            data.dtype
+            if hasattr(data, "dtype")
+            else np.result_type(*[data[var].dtype for var in data.data_vars])
+        )
+
         return xr.apply_ufunc(
             convolved,
             data_masked,
@@ -168,7 +174,7 @@ def apply_kernel(
             dask="parallelized",
             input_core_dims=[dims],
             output_core_dims=[dims],
-            output_dtypes=[data.dtype],
+            output_dtypes=[dtype],
             dask_gufunc_kwargs={"allow_rechunk": True},
         ).transpose(*data.dims)
 

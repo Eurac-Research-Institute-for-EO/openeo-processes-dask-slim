@@ -2,6 +2,7 @@ import logging
 from typing import Callable
 
 import numpy as np
+import xarray as xr
 
 from openeo_processes_dask_slim.process_implementations.cubes.resample import (
     resample_cube_spatial,
@@ -23,6 +24,10 @@ __all__ = ["mask"]
 def mask(data: RasterCube, mask: RasterCube, replacement=None) -> RasterCube:
     if replacement is None:
         replacement = np.nan
+
+    if isinstance(data, xr.Dataset):
+        data = data.where(~mask, replacement)
+        return data
 
     data_band_dims = data.openeo.band_dims
     mask_band_dims = mask.openeo.band_dims
