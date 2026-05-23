@@ -123,7 +123,7 @@ def test_apply_dimension_ordering_processes(
         data=input_cube, process=_process_rearrange, dimension="x", target_dimension="x"
     )
 
-    assert set(output_cube_rearrange.dims) == set(input_cube.dims)
+    assert list(output_cube_rearrange.dims) == list(input_cube.dims)
     for var in output_cube_rearrange.data_vars.values():
         assert isinstance(var.data, da.Array)
 

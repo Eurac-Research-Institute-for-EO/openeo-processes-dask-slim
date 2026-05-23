@@ -81,7 +81,7 @@ def test_drop_dimension(temporal_interval, bounding_box, random_raster_data):
 
     output_cube = drop_dimension(input_cube, "t")
     assert "t" not in output_cube.dims
-    assert set(output_cube.dims) == {"x", "y"}
+    assert list(output_cube.dims) == ["x", "y"]
 
 
 @pytest.mark.parametrize("size", [(30, 30, 1, 2)])

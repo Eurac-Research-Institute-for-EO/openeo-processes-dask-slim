@@ -712,7 +712,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert set(output_cube.dims) == {"x", "y", "t"}
+    assert list(output_cube.dims) == ["x", "y", "t"]
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube) + 4)
 
     _process = partial(
@@ -727,7 +727,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert set(output_cube.dims) == {"x", "y", "t"}
+    assert list(output_cube.dims) == ["x", "y", "t"]
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube) + 4)
 
     _process = partial(
@@ -747,7 +747,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert set(output_cube.dims) == {"x", "y", "t"}
+    assert list(output_cube.dims) == ["x", "y", "t"]
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube) + 4)
 
     _process = partial(
@@ -766,5 +766,5 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert set(output_cube.dims) == {"x", "y", "t"}
+    assert list(output_cube.dims) == ["x", "y", "t"]
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube))
