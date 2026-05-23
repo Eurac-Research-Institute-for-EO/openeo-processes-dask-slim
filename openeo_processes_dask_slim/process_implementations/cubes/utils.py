@@ -3,6 +3,7 @@ try:
 except ImportError:
     dask = None
 
+import xarray as xr
 from xarray.core.duck_array_ops import isnull as xr_isnull
 
 
@@ -23,6 +24,17 @@ def isnull(data):
 
 def notnull(data):
     return ~isnull(data)
+
+
+def ensure_raster_cube(data, process_name=None):
+    if not isinstance(data, xr.Dataset):
+        msg = (
+            f"RasterCube must be an xr.Dataset"
+            f"{' in ' + process_name if process_name else ''}"
+            f", got {type(data).__name__}. "
+            f"DataArray inputs are no longer supported."
+        )
+        raise TypeError(msg)
 
 
 def _capture_var_metadata(dataset):

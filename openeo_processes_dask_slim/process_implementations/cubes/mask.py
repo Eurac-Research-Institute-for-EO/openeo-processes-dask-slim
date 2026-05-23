@@ -7,7 +7,10 @@ import xarray as xr
 from openeo_processes_dask_slim.process_implementations.cubes.resample import (
     resample_cube_spatial,
 )
-from openeo_processes_dask_slim.process_implementations.cubes.utils import notnull
+from openeo_processes_dask_slim.process_implementations.cubes.utils import (
+    ensure_raster_cube,
+    notnull,
+)
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionLabelCountMismatch,
@@ -96,6 +99,7 @@ def mask(data: RasterCube, mask: RasterCube, replacement=None) -> RasterCube:
     if replacement is None:
         replacement = np.nan
 
+    ensure_raster_cube(data, "mask")
     if isinstance(data, xr.Dataset):
         return _mask_dataset(data, mask, replacement)
 

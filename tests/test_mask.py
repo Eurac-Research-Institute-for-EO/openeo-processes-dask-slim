@@ -55,6 +55,20 @@ def test_mask_dataset_dataarray_mask():
     assert out["B03"][0, 1] == -1
 
 
+def test_mask_rejects_dataarray():
+    import dask.array as da
+
+    da_data = xr.DataArray(
+        da.from_array(np.arange(4).reshape(2, 2), chunks=-1), dims=["y", "x"]
+    )
+    mask_data = xr.DataArray(
+        da.from_array(np.array([[False, True], [False, False]]), chunks=-1),
+        dims=["y", "x"],
+    )
+    with pytest.raises(TypeError, match="RasterCube must be an xr.Dataset"):
+        mask(data=da_data, mask=mask_data)
+
+
 def test_mask_dataset_per_variable_mask():
     data = xr.Dataset(
         {
