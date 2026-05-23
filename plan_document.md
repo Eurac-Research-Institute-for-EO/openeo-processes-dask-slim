@@ -439,42 +439,19 @@ The following phases complete the migration by switching `RasterCube` from `Unio
 
 All 301 tests pass with this change alone.
 
-### Phase B — Enable enforcement process-by-process (⬜ Blocked)
+### Phase B — Enable enforcement process-by-process (✅ Done)
 
-`ensure_raster_cube` is currently a pass-through. To enable strict rejection, ~45 test assertions across 7 files need rewriting because they use DataArray-specific APIs directly on test data:
+`ensure_raster_cube` now raises `TypeError` for `xr.DataArray` inputs. Migrated 8 test files and fixed virtual bands paths in both `apply_dimension` and `reduce_dimension`.
 
-| File | Count | Pattern to fix |
-|---|---|---|
-| `tests/test_apply.py` | 10 | `input_cube.data`, `np.argsort(input_cube.data, ...)` |
-| `tests/test_arrays.py` | 3 | `reduce_dimension` calls, `.data` access |
-| `tests/test_comparison.py` | 2 | `apply` calls, `.data` access |
-| `tests/test_logic.py` | 2 | `apply` / `reduce_dimension` calls |
-| `tests/test_filter.py` | 1 | `filter_bbox` uses `reduce_dimension` internally |
-| `tests/test_resample.py` | 36 | `test_resample_spatial` calls `reduce_dimension` |
+### Phase C — Fix the call chain (✅ Done — no-op)
 
-Blocked until these assertions are updated to work with `xr.Dataset` (e.g., per-variable data access instead of `.data`).
+No processes call L1 processes (`reduce_dimension`, `apply`, `apply_dimension`) internally. Removed dead imports of these functions from `ddmc.py` and `curve_fitting.py`.
 
-### Phase C — Fix the call chain (⬜ Blocked)
+### Phase D — Make Dataset the test default (✅ Done)
 
-Once Phase B is enabled, processes that call L1 processes internally (e.g., `filter_bbox` → `reduce_dimension`) will also fail if they pass DataArrays. Each such process needs:
-
-1. Its test data converted to Dataset, OR
-2. The process itself migrated to Dataset-native APIs first.
-
-### Phase D — Make Dataset the test default (⬜ Blocked)
-
-1. Change `create_fake_rastercube` default `as_dataset` to `True`.
-2. Remove old DataArray-specific test branches.
-3. Run the static shortcut audit on migrated modules:
-
-```text
-.to_array(
-.to_dataset(   (only in non-migrated paths)
-xr.DataArray    (only in non-migrated paths)
-.values         (justified)
-.to_numpy()
-.compute()      (justified in tests)
-```
+1. Changed `create_fake_rastercube` default `as_dataset` to `True`.
+2. Migrated all remaining processes for Dataset compatibility: `merge_cubes`, `filter_labels`, `ddmc`, `fit_curve`/`predict_curve`, `run_udf`, `resample_cube_temporal`, `aggregate_temporal`, `trim_cube`.
+3. Updated all test files to work with Dataset as the default cube type.
 
 ### Acceptance Gates
 

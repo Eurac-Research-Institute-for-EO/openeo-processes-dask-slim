@@ -23,7 +23,7 @@ def apply_neighborhood_intertwin(
     if overlap:
         size, stride = update_size_and_stride_with_overlap(size, overlap)
 
-    new_dim_names = {i: f"window_{i}" for i in data.dims[::-1] if i != "bands"}
+    new_dim_names = {i: f"window_{i}" for i in list(data.dims)[::-1] if i != "bands"}
     window_data = data.rolling(size, center=True).construct(
         new_dim_names, stride=stride
     )
