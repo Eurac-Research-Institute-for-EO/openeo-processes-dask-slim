@@ -36,7 +36,7 @@ def drop_dimension(data: RasterCube, name: str) -> RasterCube:
 
 
 def create_data_cube() -> RasterCube:
-    return xr.DataArray()
+    return xr.Dataset()
 
 
 def trim_cube(data) -> RasterCube:
@@ -83,7 +83,7 @@ def add_dimension(
     """
     Parameters
     ----------
-    data : xr.DataArray
+    data : xr.Dataset
        A data cube to add the dimension to.
     name : str
        Name for the dimension.
@@ -93,7 +93,7 @@ def add_dimension(
        The type of dimension, defaults to other.
     Returns
     -------
-    xr.DataArray :
+    xr.Dataset :
        The data cube with a newly added dimension. The new dimension has exactly one dimension label.
        All other dimensions remain unchanged.
     """

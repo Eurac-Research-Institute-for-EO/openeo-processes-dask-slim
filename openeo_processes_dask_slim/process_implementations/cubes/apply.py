@@ -5,9 +5,6 @@ import odc.geo.xr
 import scipy.ndimage
 import xarray as xr
 
-from openeo_processes_dask_slim.process_implementations.cubes.utils import (
-    ensure_raster_cube,
-)
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
@@ -20,7 +17,6 @@ __all__ = ["apply", "apply_dimension", "apply_kernel"]
 def apply(
     data: RasterCube, process: Callable, context: Optional[dict] = None
 ) -> RasterCube:
-    data = ensure_raster_cube(data, "apply")
     positional_parameters = {"x": 0}
     named_parameters = {"context": context}
     result = xr.apply_ufunc(
@@ -45,8 +41,6 @@ def apply_dimension(
 ) -> RasterCube:
     if context is None:
         context = {}
-
-    data = ensure_raster_cube(data, "apply_dimension")
 
     if dimension == "bands" and isinstance(data, xr.Dataset):
         band_array = data.to_array(dim="bands")

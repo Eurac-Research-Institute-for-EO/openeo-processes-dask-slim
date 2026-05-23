@@ -3,9 +3,6 @@ from typing import Callable, Optional
 import numpy as np
 import xarray as xr
 
-from openeo_processes_dask_slim.process_implementations.cubes.utils import (
-    ensure_raster_cube,
-)
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
@@ -20,8 +17,6 @@ def reduce_dimension(
     dimension: str,
     context: Optional[dict] = None,
 ) -> RasterCube:
-    data = ensure_raster_cube(data, "reduce_dimension")
-
     if dimension == "bands" and isinstance(data, xr.Dataset):
         band_array = data.to_array(dim="bands")
         dim_labels = band_array[dimension].values
