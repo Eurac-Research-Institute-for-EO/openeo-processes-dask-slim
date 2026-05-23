@@ -1,5 +1,3 @@
-import copy
-import itertools
 import logging
 from typing import Any, Callable, Optional, Union
 
@@ -9,7 +7,6 @@ import pandas as pd
 import xarray as xr
 from numpy.typing import ArrayLike
 from openeo_pg_parser_networkx.pg_schema import DateTime
-from xarray.core.duck_array_ops import isnull, notnull
 
 from openeo_processes_dask_slim.process_implementations.comparison import is_valid
 from openeo_processes_dask_slim.process_implementations.cubes.utils import (
@@ -52,20 +49,50 @@ __all__ = [
 ]
 
 
-def get_labels(data, dimension="labels", axis=0, dim_labels=None):
+def get_labels(data, dimension="labels", axis=None, dim_labels=None):
     if isinstance(data, xr.DataArray):
-        dimension = data.dims[0] if len(data.dims) == 1 else dimension
-        if axis:
+        if len(data.dims) == 1:
+            dimension = data.dims[0]
+        elif axis is not None and not isinstance(axis, tuple):
             dimension = data.dims[axis]
-        labels = data[dimension].values
-        data = data.values
+        labels = data[dimension].values if dimension in data.dims else []
+        data = data.data
     else:
         labels = []
         if isinstance(data, list):
             data = np.asarray(data)
-    if not isinstance(dim_labels, type(None)):
+    if dim_labels is not None:
         labels = dim_labels
     return labels, data
+
+
+def _normalize_sort_axis(data, axis):
+    if axis is None:
+        data = data.reshape((data.size,))
+        axis = 0
+    if axis < 0:
+        axis += data.ndim
+    if _is_dask_array(data):
+        chunks = list(data.chunks)
+        chunks[axis] = (data.shape[axis],)
+        data = data.rechunk(tuple(chunks))
+    return data, axis
+
+
+def _sort(data, axis):
+    data, axis = _normalize_sort_axis(data, axis)
+    if _is_dask_array(data):
+        return data.map_blocks(np.sort, axis=axis, dtype=data.dtype)
+    return np.sort(data, axis=axis)
+
+
+def _argsort(data, axis):
+    data, axis = _normalize_sort_axis(data, axis)
+    if _is_dask_array(data):
+        return data.map_blocks(
+            np.argsort, kind="mergesort", axis=axis, dtype=np.intp
+        )
+    return np.argsort(data, kind="mergesort", axis=axis)
 
 
 def array_element(
@@ -152,7 +179,8 @@ def array_modify(
     labels, data = get_labels(data, axis=axis)
     values_labels, values = get_labels(values, axis=axis)
 
-    if index > len(data):
+    data_length = data.shape[axis] if axis is not None else len(data)
+    if index > data_length:
         raise ArrayElementNotAvailable(
             "The array can't be modified as the given index is larger than the number of elements in the array."
         )
@@ -168,16 +196,25 @@ def array_modify(
             modified = np.append(modified, data[index + length :])
         return modified
 
-    if axis:
+    if axis is not None:
         if _is_dask_array(data):
-            if data.size > 50000000:
-                raise Exception(
-                    f"Cannot load data of shape: {data.shape} into memory. "
-                )
-            # currently, there seems to be no way around loading the values,
-            # apply_along_axis cannot handle dask arrays
-            data = data.compute()
-        modified = np.apply_along_axis(modify, axis=axis, arr=data)
+            value_shape = np.shape(values)
+            value_length = 1 if value_shape == () else value_shape[0]
+            value_dtype = (
+                values.dtype if hasattr(values, "dtype") else np.asarray(values).dtype
+            )
+            output_length = min(index, data_length) + value_length
+            if index + length < data_length:
+                output_length += data_length - (index + length)
+            modified = da.apply_along_axis(
+                modify,
+                axis=axis,
+                arr=data,
+                dtype=np.result_type(data.dtype, value_dtype),
+                shape=(output_length,),
+            )
+        else:
+            modified = np.apply_along_axis(modify, axis=axis, arr=data)
     else:
         modified = modify(data)
 
@@ -298,14 +335,14 @@ def array_find(
     Returns filled array (not masked). For axis=None with single match,
     returns a scalar instead of a 1-element array.
     """
-    labels, data = get_labels(data, axis)
+    labels, data = get_labels(data, axis=axis)
 
     if reverse:
         data = np.flip(data, axis=axis)
 
     eq = data == value
     idxs = eq.argmax(axis=axis)
-    mask = ~np.array(eq.any(axis=axis))
+    mask = ~eq.any(axis=axis)
 
     try:
         if bool(np.isnan(value)):
@@ -318,7 +355,6 @@ def array_find(
         idxs = size - 1 - idxs
 
     if isinstance(idxs, da.Array):
-        idxs = idxs.compute_chunk_sizes()
         masked_idxs = da.ma.masked_array(idxs, mask=mask)
         filled_idxs = da.ma.filled(masked_idxs)
         return da.atleast_1d(filled_idxs)
@@ -372,13 +408,13 @@ def array_filter(
             labels = labels[filtered_data]
             data = array_create_labeled(data, labels)
         return data
-    raise Exception(f"Array could not be filtered as condition is not callable. ")
+    raise Exception("Array could not be filtered as condition is not callable. ")
 
 
 def array_labels(data: ArrayLike, axis=None, dim_labels=None) -> ArrayLike:
     if dim_labels:
         return dim_labels
-    if isinstance(data, xr.DataArray) and axis:
+    if isinstance(data, xr.DataArray) and axis is not None:
         dim = data.dims[axis]
         labels, data = get_labels(data, dim)
     else:
@@ -407,7 +443,7 @@ def array_apply(
             positional_parameters=positional_parameters,
             named_parameters=named_parameters,
         )
-    raise Exception(f"Could not apply process as it is not callable. ")
+    raise Exception("Could not apply process as it is not callable. ")
 
 
 def array_interpolate_linear(data: ArrayLike, axis=None, dim_labels=None):
@@ -416,7 +452,7 @@ def array_interpolate_linear(data: ArrayLike, axis=None, dim_labels=None):
     if len(x) > 0:
         dim_labels = x
         return_label = True
-    if dim_labels:
+    if dim_labels is not None:
         x = np.array(dim_labels)
     if np.array(x).dtype.type is np.str_:
         try:
@@ -444,15 +480,17 @@ def array_interpolate_linear(data: ArrayLike, axis=None, dim_labels=None):
         )
         return data
 
-    if axis:
+    if axis is not None:
         if _is_dask_array(data):
-            if data.size > 50000000:
-                raise Exception(
-                    f"Cannot load data of shape: {data.shape} into memory. "
-                )
-            # np.apply_along_axis cannot handle dask arrays
-            data = data.compute()
-        data = np.apply_along_axis(interp, axis=axis, arr=data)
+            data = da.apply_along_axis(
+                interp,
+                axis=axis,
+                arr=data,
+                dtype=data.dtype,
+                shape=(data.shape[axis],),
+            )
+        else:
+            data = np.apply_along_axis(interp, axis=axis, arr=data)
     else:
         if isinstance(data, da.Array):
             data = data.rechunk(data.shape)
@@ -477,13 +515,18 @@ def first(
         data = data.flatten()
         axis = 0
     if ignore_nodata:
-        nan_mask = ~pd.isnull(data)  # create mask for valid values (not np.nan)
-        idx_first = np.argmax(nan_mask, axis=axis)
-        first_elem = np.take(data, indices=0, axis=axis)
+        def first_valid(values):
+            valid = ~pd.isnull(values)
+            if np.any(valid):
+                return values[np.argmax(valid)]
+            return np.nan
 
-        if pd.isnull(np.asarray(first_elem)).any():
-            for i in range(np.max(idx_first) + 1):
-                first_elem = np.nan_to_num(first_elem, True, np.take(data, i, axis))
+        if _is_dask_array(data):
+            first_elem = da.apply_along_axis(
+                first_valid, axis=axis, arr=data, dtype=data.dtype, shape=()
+            )
+        else:
+            first_elem = np.apply_along_axis(first_valid, axis=axis, arr=data)
     else:  # take the first element, no matter np.nan values are in the array
         first_elem = np.take(data, indices=0, axis=axis)
     return first_elem
@@ -511,15 +554,11 @@ def order(
     if len(data) == 0:
         return data
 
-    # See https://github.com/dask/dask/issues/4368
-    logger.warning(
-        "order: Dask does not support lazy sorting of arrays, therefore the array is loaded into memory here. This might fail for arrays that don't fit into memory."
-    )
-
-    permutation_idxs = np.argsort(data, kind="mergesort", axis=axis)
+    data, axis = _normalize_sort_axis(data, axis)
+    permutation_idxs = _argsort(data, axis=axis)
     if not asc:  # [::-1] not possible
         permutation_idxs = np.flip(
-            permutation_idxs
+            permutation_idxs, axis=axis
         )  # descending - the order is flipped
 
     if nodata is None:  # ignore np.nan values
@@ -528,15 +567,17 @@ def order(
                 "order with nodata=None is not supported for arrays with more than one dimension, as this would result in sparse multi-dimensional arrays."
             )
         # sort the original data first, to get correct position of no data values
-        sorted_data = np.take_along_axis(data, permutation_idxs, axis=axis)
-        return permutation_idxs[~pd.isnull(sorted_data)]
+        sorted_data = data[permutation_idxs]
+        return permutation_idxs[is_valid(sorted_data)]
     elif nodata is False:  # put location/index of np.nan values first
         # sort the original data first, to get correct position of no data values
         sorted_data = data[permutation_idxs]
-        return np.append(
-            permutation_idxs[pd.isnull(sorted_data)],
-            permutation_idxs[~pd.isnull(sorted_data)],
-        )
+        null_mask = ~is_valid(sorted_data)
+        if _is_dask_array(permutation_idxs):
+            return da.concatenate(
+                [permutation_idxs[null_mask], permutation_idxs[~null_mask]]
+            )
+        return np.append(permutation_idxs[null_mask], permutation_idxs[~null_mask])
     elif nodata is True:  # default argsort behaviour, np.nan values are put last
         return permutation_idxs
 
@@ -571,22 +612,21 @@ def sort(
     if len(data) == 0:
         return data
     if asc:
-        data_sorted = np.sort(data, axis=axis)
+        data_sorted = _sort(data, axis=axis)
     else:  # [::-1] not possible
-        data_sorted = -np.sort(
+        data_sorted = -_sort(
             -data, axis=axis
         )  # to get the indexes in descending order, the sign of the data is changed
 
     if nodata is None:  # ignore np.nan values
-        nan_idxs = pd.isnull(data_sorted)
-        return data_sorted[~nan_idxs]
-    elif nodata == False:  # put np.nan values first
-        nan_idxs = pd.isnull(data_sorted)
+        return data_sorted[is_valid(data_sorted)]
+    elif nodata is False:  # put np.nan values first
+        nan_idxs = ~is_valid(data_sorted)
         data_sorted_flip = np.flip(data_sorted, axis=axis)
-        nan_idxs_flip = pd.isnull(data_sorted_flip)
+        nan_idxs_flip = ~is_valid(data_sorted_flip)
         data_sorted_flip[~nan_idxs_flip] = data_sorted[~nan_idxs]
         return data_sorted_flip
-    elif nodata == True:  # default sort behaviour, np.nan values are put last
+    elif nodata is True:  # default sort behaviour, np.nan values are put last
         return data_sorted
 
 
@@ -609,4 +649,4 @@ def count(
         context.pop("x", None)
         count = condition(x=data, **context)
         return np.nansum(count, axis=axis, keepdims=keepdims)
-    raise Exception(f"Could not count values as condition is not callable. ")
+    raise Exception("Could not count values as condition is not callable. ")

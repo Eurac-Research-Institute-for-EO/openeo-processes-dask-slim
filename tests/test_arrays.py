@@ -14,11 +14,18 @@ from openeo_processes_dask_slim.process_implementations.cubes.reduce import (
 )
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     ArrayElementNotAvailable,
-    TooManyDimensions,
 )
-from openeo_processes_dask_slim.process_implementations.math import add
 from tests.general_checks import general_output_checks
 from tests.mockdata import create_fake_rastercube
+
+
+class _DaskComputeRecorder(dask.callbacks.Callback):
+    def __init__(self):
+        self.starts = 0
+        super().__init__()
+
+    def _start(self, dsk):
+        self.starts += 1
 
 
 @pytest.mark.parametrize("size", [(30, 30, 20, 4)])
@@ -105,6 +112,22 @@ def test_array_element(
     xr.testing.assert_equal(output_cube_no_data_dask, output_cube_no_data_numpy)
 
 
+def test_array_element_dataarray_does_not_compute_dask_payload():
+    data = xr.DataArray(
+        da.from_array(np.arange(12).reshape(3, 4), chunks=(1, 4)),
+        dims=["bands", "x"],
+        coords={"bands": ["B02", "B03", "B04"]},
+    )
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = array_element(data, index=1, axis=0)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(result.compute(), np.array([4, 5, 6, 7]))
+
+
 @pytest.mark.parametrize(
     "data, repeat",
     [([2], 3), ([], 10), ([1, 2, 3], 2), (["A", "B", "C"], 1), ([2, 1], 2)],
@@ -160,6 +183,21 @@ def test_array_modify_labels():
     assert (
         modified_array["labels"].values == ["B02", "B05", "B06", "B07", "B04"]
     ).all()
+
+
+def test_array_modify_axis_does_not_compute_dask_payload():
+    data = da.from_array(np.arange(12).reshape(3, 4), chunks=(1, 4))
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = array_modify(data, values=[99, 98], index=1, length=2, axis=1)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(
+        result.compute(),
+        np.array([[0, 99, 98, 3], [4, 99, 98, 7], [8, 99, 98, 11]]),
+    )
 
 
 @pytest.mark.parametrize(
@@ -278,6 +316,18 @@ def test_array_find(data, value, expected, axis, reverse):
     np.testing.assert_array_equal(result_dask, expected)
 
 
+def test_array_find_does_not_compute_dask_payload():
+    data = da.from_array(np.array([[1, 2, 3], [4, 3, 6]]), chunks=(1, 3))
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = array_find(data, value=3, axis=1)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(result.compute(), np.array([2, 1]))
+
+
 def test_array_find_labels():
     """Tests `array_find_label` function."""
     find = array_find_label([1, 2, 4], label="B03", dim_labels=["B02", "B03", "B04"])
@@ -344,6 +394,24 @@ def test_array_interpolate_linear(data, expected):
     )
 
 
+def test_array_interpolate_linear_axis_does_not_compute_dask_payload():
+    data = da.from_array(
+        np.array([[np.nan, 1, np.nan, 3], [4, np.nan, 8, np.nan]]),
+        chunks=(1, 4),
+    )
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = array_interpolate_linear(data, axis=1)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(
+        result.compute(),
+        np.array([[np.nan, 1, 2, 3], [4, 6, 8, np.nan]]),
+    )
+
+
 @pytest.mark.parametrize(
     "data, expected, labels",
     [
@@ -400,6 +468,21 @@ def test_first_along_axis():
     )
 
 
+def test_first_axis_does_not_compute_dask_payload():
+    data = da.from_array(
+        np.array([[np.nan, 2, 3], [np.nan, np.nan, 5]]),
+        chunks=(1, 3),
+    )
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = first(data, ignore_nodata=True, axis=1)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(result.compute(), np.array([2, 5]))
+
+
 def test_last():
     assert last([1, 0, 3, 2]) == 2
     assert pd.isnull(last([0, 1, np.nan], ignore_nodata=False))
@@ -445,6 +528,18 @@ def test_order(data, asc, nodata, expected):
         order(data=da.from_array(np.array(data)), asc=asc, nodata=nodata),
         da.from_array(np.array(expected)),
     )
+
+
+def test_order_does_not_compute_dask_payload():
+    data = da.from_array(np.array([3.0, 1.0, 2.0]), chunks=(3,))
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = order(data, asc=True, nodata=True)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(result.compute(), np.array([1, 2, 0]))
 
 
 @pytest.mark.parametrize(
@@ -504,10 +599,22 @@ def test_sort(data, asc, nodata, expected):
         equal_nan=True,
     ).all()
     assert np.isclose(
-        sort(data=da.from_array(np.array(data)), asc=asc, nodata=nodata),
+        sort(data=da.from_array(np.array(data)), asc=asc, nodata=nodata).compute(),
         expected,
         equal_nan=True,
     ).all()
+
+
+def test_sort_does_not_compute_dask_payload():
+    data = da.from_array(np.array([3.0, 1.0, 2.0]), chunks=(3,))
+
+    recorder = _DaskComputeRecorder()
+    with recorder:
+        result = sort(data, asc=True, nodata=True)
+
+    assert recorder.starts == 0
+    assert isinstance(result, da.Array)
+    np.testing.assert_array_equal(result.compute(), np.array([1.0, 2.0, 3.0]))
 
 
 @pytest.mark.parametrize("size", [(3, 3, 2, 4)])
