@@ -231,3 +231,96 @@ def test_merge_cubes_dataset(temporal_interval, bounding_box, random_raster_data
     merged = merge_cubes(cube_a, cube_b)
     assert isinstance(merged, xr.Dataset)
     assert set(merged.data_vars) == {"B02", "B03", "B04", "B08"}
+
+
+@pytest.mark.parametrize("size", [(6, 5, 4, 3)])
+@pytest.mark.parametrize("dtype", [np.float64])
+def test_merge_cubes_preserves_var_order(
+    temporal_interval, bounding_box, random_raster_data
+):
+    cube_a = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B08", "B02", "B03"],
+        backend="numpy",
+        as_dataset=True,
+    )
+    cube_a = cube_a[["B08", "B02", "B03"]]
+
+    cube_b = create_fake_rastercube(
+        data=np.random.default_rng(42).integers(-100, 100, size=(6, 5, 4, 1)).astype(np.float64),
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B04"],
+        backend="numpy",
+        as_dataset=True,
+    )
+
+    merged = merge_cubes(cube_a, cube_b)
+    assert list(merged.data_vars) == ["B08", "B02", "B03", "B04"]
+
+
+@pytest.mark.parametrize("size", [(6, 5, 4, 2)])
+@pytest.mark.parametrize("dtype", [np.float64])
+def test_merge_cubes_preserves_var_attrs(
+    temporal_interval, bounding_box, random_raster_data
+):
+    cube1 = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03"],
+        backend="numpy",
+        as_dataset=True,
+    )
+    cube2_data = np.random.default_rng(77).integers(-100, 100, size=(6, 5, 4, 2)).astype(np.float64)
+    cube2 = create_fake_rastercube(
+        data=cube2_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B04", "B08"],
+        backend="numpy",
+        as_dataset=True,
+    )
+
+    cube1["B02"].attrs["description"] = "Band 2"
+    cube1["B03"].attrs["description"] = "Band 3"
+    cube2["B04"].attrs["description"] = "Band 4"
+    cube2["B08"].attrs["description"] = "Band 8"
+
+    merged = merge_cubes(cube1, cube2)
+    assert merged["B02"].attrs.get("description") == "Band 2"
+    assert merged["B03"].attrs.get("description") == "Band 3"
+    assert merged["B04"].attrs.get("description") == "Band 4"
+    assert merged["B08"].attrs.get("description") == "Band 8"
+
+
+@pytest.mark.parametrize("size", [(6, 5, 4, 2)])
+@pytest.mark.parametrize("dtype", [np.float64])
+def test_merge_cubes_preserves_dask(
+    temporal_interval, bounding_box, random_raster_data
+):
+    import dask
+
+    cube1 = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03"],
+        backend="dask",
+        as_dataset=True,
+    )
+    cube2_data = np.random.default_rng(55).integers(-100, 100, size=(6, 5, 4, 2)).astype(np.float64)
+    cube2 = create_fake_rastercube(
+        data=cube2_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    merged = merge_cubes(cube1, cube2)
+    for var in merged.data_vars.values():
+        assert isinstance(var.data, dask.array.Array)

@@ -1,6 +1,7 @@
 from typing import Callable, Optional
 
 import numpy as np
+import odc.geo.xr
 import xarray as xr
 
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
@@ -25,6 +26,7 @@ def _align_coordinates(
     cube1: RasterCube, cube2: RasterCube
 ) -> tuple[RasterCube, RasterCube]:
     """Align coordinates between two cubes if they're very close numerically."""
+    cube2 = cube2.copy(deep=False)
     shared_dims = set(cube1.dims).intersection(set(cube2.dims))
 
     for dim in shared_dims:
@@ -65,16 +67,42 @@ def merge_cubes(
         )
 
     if isinstance(cube1, xr.Dataset):
-        dim_name = "bands"
-        cube1_da = cube1.to_array(dim=dim_name)
-        cube2_da = cube2.to_array(dim=dim_name)
-        result_da = merge_cubes(
-            cube1_da,
-            cube2_da,
-            overlap_resolver=overlap_resolver,
-            context=context,
-        )
-        return result_da.to_dataset(dim=dim_name)
+        vars1 = set(cube1.data_vars)
+        vars2 = set(cube2.data_vars)
+        in_both = vars1 & vars2
+        only_in1 = vars1 - vars2
+        only_in2 = vars2 - vars1
+        var_order = list(cube1.data_vars) + [v for v in cube2.data_vars if v not in cube1.data_vars]
+
+        var_attrs = {v: cube1[v].attrs for v in cube1.data_vars}
+        var_attrs.update({v: cube2[v].attrs for v in cube2.data_vars if v not in var_attrs})
+
+        if in_both and (only_in1 or only_in2) and overlap_resolver is None:
+            raise OverlapResolverMissing(
+                "Overlapping data cubes, but no overlap resolver has been specified."
+            )
+
+        result_vars = {}
+        for var in in_both:
+            result_vars[var] = merge_cubes(
+                cube1[var], cube2[var], overlap_resolver=overlap_resolver, context=context
+            )
+        for var in only_in1:
+            result_vars[var] = cube1[var]
+        for var in only_in2:
+            result_vars[var] = cube2[var]
+
+        result = xr.Dataset(result_vars, coords=cube1.coords, attrs=cube1.attrs)
+        for v, attrs in var_attrs.items():
+            if v in result.data_vars:
+                result[v].attrs = attrs
+        if cube1.odc.crs is not None:
+            try:
+                result = odc.geo.xr.assign_crs(result, crs=cube1.odc.crs)
+            except ValueError:
+                pass
+        result = result[var_order]
+        return result
 
     # Align coordinates if they're very close numerically
     cube1, cube2 = _align_coordinates(cube1, cube2)
@@ -147,26 +175,30 @@ def merge_cubes(
                 previous_dim_order = list(cube1.dims) + [
                     dim for dim in cube2.dims if dim not in cube1.dims
                 ]
-                band_dim1 = cube1.openeo.band_dims[0]
-                band_dim2 = cube2.openeo.band_dims[0]
-                if len(cube1.openeo.band_dims) > 0 or len(cube2.openeo.band_dims) > 0:
+                has_band_dim = len(cube1.openeo.band_dims) > 0 and len(cube2.openeo.band_dims) > 0
+                if has_band_dim:
+                    band_dim = cube1.openeo.band_dims[0]
                     # Same reordering issue mentioned above
-                    previous_band_order = list(cube1[band_dim1].values) + [
+                    previous_band_order = list(cube1[band_dim].values) + [
                         band
-                        for band in list(cube2[cube2.openeo.band_dims[0]].values)
-                        if band not in list(cube1[band_dim1].values)
+                        for band in list(cube2[band_dim].values)
+                        if band not in list(cube1[band_dim].values)
                     ]
-                    cube1 = cube1.to_dataset(band_dim1)
-                    cube2 = cube2.to_dataset(band_dim2)
+                    cube1 = cube1.to_dataset(band_dim)
+                    cube2 = cube2.to_dataset(band_dim)
 
                 # compat="override" to deal with potentially conflicting coords
                 # see https://github.com/Open-EO/openeo-processes-dask/pull/148 for context
+                # coords="minimal" avoids conflict with compat="override" in xarray >= 2025
                 merged_cube = xr.combine_by_coords(
-                    [cube1, cube2], combine_attrs="drop_conflicts", compat="override"
+                    [cube1, cube2],
+                    combine_attrs="drop_conflicts",
+                    compat="override",
+                    coords="minimal",
                 )
-                if isinstance(merged_cube, xr.Dataset):
-                    merged_cube = merged_cube.to_array(dim=band_dim1)
-                    merged_cube = merged_cube.reindex({band_dim1: previous_band_order})
+                if has_band_dim and isinstance(merged_cube, xr.Dataset):
+                    merged_cube = merged_cube.to_array(dim=band_dim)
+                    merged_cube = merged_cube.reindex({band_dim: previous_band_order})
 
                 merged_cube = merged_cube.transpose(*previous_dim_order)
 
