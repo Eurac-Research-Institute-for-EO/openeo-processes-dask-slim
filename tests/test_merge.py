@@ -302,6 +302,21 @@ def test_merge_cubes_preserves_var_attrs(
     assert merged["B08"].attrs.get("description") == "Band 8"
 
 
+def test_merge_cubes_disjoint_coords():
+    ds1 = xr.Dataset(
+        {"B02": xr.DataArray(np.ones(2), dims=["t"], coords={"t": [0, 1]})}
+    )
+    ds2 = xr.Dataset(
+        {"B03": xr.DataArray(np.ones(2) * 2, dims=["t"], coords={"t": [2, 3]})}
+    )
+    merged = merge_cubes(ds1, ds2)
+    assert list(merged.t.values) == [0, 1, 2, 3]
+    assert merged["B03"].sel(t=[2, 3]).notnull().all()
+    assert merged["B03"].sel(t=[0, 1]).isnull().all()
+    assert merged["B02"].sel(t=[0, 1]).notnull().all()
+    assert merged["B02"].sel(t=[2, 3]).isnull().all()
+
+
 @pytest.mark.parametrize("size", [(6, 5, 4, 2)])
 @pytest.mark.parametrize("dtype", [np.float64])
 def test_merge_cubes_preserves_dask(
