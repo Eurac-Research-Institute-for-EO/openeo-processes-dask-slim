@@ -123,7 +123,7 @@ def test_apply_dimension_ordering_processes(
         data=input_cube, process=_process_rearrange, dimension="x", target_dimension="x"
     )
 
-    assert set(output_cube_rearrange.dims) == set(input_cube.dims)
+    assert list(output_cube_rearrange.dims) == list(input_cube.dims)
     for var in output_cube_rearrange.data_vars.values():
         assert isinstance(var.data, da.Array)
 
@@ -522,3 +522,23 @@ def test_apply_dimension_cummin_process(
 
     first_var = list(output_cube_cummin_with_nan.data_vars.values())[0]
     assert np.isnan(first_var.data[0, 0, 16])
+
+
+@pytest.mark.parametrize("size", [(6, 5, 4, 4)])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_apply_kernel_dataset(temporal_interval, bounding_box, random_raster_data):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+    kernel = np.asarray([[0, 0, 0], [0, 1, 0], [0, 0, 0]])
+    output_cube = apply_kernel(data=input_cube, kernel=kernel)
+    assert isinstance(output_cube, xr.Dataset)
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    for var_name in output_cube.data_vars:
+        assert isinstance(output_cube[var_name].data, da.Array)
+    xr.testing.assert_equal(output_cube, input_cube)

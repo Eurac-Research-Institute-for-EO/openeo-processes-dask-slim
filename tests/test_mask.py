@@ -55,6 +55,25 @@ def test_mask_dataset_dataarray_mask():
     assert out["B03"][0, 1] == -1
 
 
+def test_mask_preserves_dask_laziness(temporal_interval, bounding_box):
+    import dask
+    import dask.array as da
+
+    data_cube = create_fake_rastercube(
+        data=np.random.rand(6, 5, 4, 2),
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03"],
+        backend="dask",
+        as_dataset=True,
+    )
+    mask_data = data_cube > 50
+    output = mask(data=data_cube, mask=mask_data, replacement=np.nan)
+    for var in output.data_vars.values():
+        assert isinstance(var.data, dask.array.Array)
+        assert len(var.data.__dask_graph__()) > 0
+
+
 def test_mask_rejects_dataarray():
     import dask.array as da
 

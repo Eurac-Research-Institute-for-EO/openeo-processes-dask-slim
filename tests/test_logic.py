@@ -190,7 +190,7 @@ def test_merge_cubes(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert set(merged_cube.dims) == {"x", "y", "t"}
+    assert list(merged_cube.dims) == ["x", "y", "t"]
     for var in merged_cube.data_vars.values():
         assert isinstance(var.data, da.Array)
     xr.testing.assert_equal(
@@ -203,7 +203,7 @@ def test_merge_cubes(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert set(merged_cube.dims) == {"x", "y", "t"}
+    assert list(merged_cube.dims) == ["x", "y", "t"]
     for var in merged_cube.data_vars.values():
         assert isinstance(var.data, da.Array)
     xr.testing.assert_equal(
@@ -216,7 +216,7 @@ def test_merge_cubes(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert set(merged_cube.dims) == {"x", "y", "t"}
+    assert list(merged_cube.dims) == ["x", "y", "t"]
     for var in merged_cube.data_vars.values():
         assert isinstance(var.data, da.Array)
     xr.testing.assert_equal(

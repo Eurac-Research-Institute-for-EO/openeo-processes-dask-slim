@@ -1,5 +1,6 @@
 from functools import partial
 
+import dask.array as da
 import geopandas as gpd
 import numpy as np
 import pytest
@@ -207,3 +208,34 @@ def test_aggregate_temporal_period_dataset(
 
     assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
     assert "t" in output_cube.dims
+
+
+@pytest.mark.parametrize("size", [(6, 5, 100, 4)])
+@pytest.mark.parametrize("dtype", [np.float64])
+def test_aggregate_temporal_dataset(
+    temporal_interval, bounding_box, random_raster_data, process_registry
+):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+    reducer = partial(
+        process_registry["mean"].implementation,
+        data=ParameterReference(from_parameter="data"),
+    )
+    intervals = [
+        ["2018-01-01T12:00:00", "2018-06-01T12:00:00"],
+        ["2018-07-01T12:00:00", "2018-12-01T12:00:00"],
+    ]
+    labels = ["half-1", "half-2"]
+    output_cube = aggregate_temporal(
+        data=input_cube, intervals=intervals, reducer=reducer, labels=labels
+    )
+    assert isinstance(output_cube, xr.Dataset)
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    for var in output_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)

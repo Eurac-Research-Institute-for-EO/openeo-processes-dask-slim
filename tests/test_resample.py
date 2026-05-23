@@ -1,5 +1,6 @@
 from functools import partial
 
+import dask.array as da
 import numpy as np
 import pytest
 import xarray as xr
@@ -195,3 +196,42 @@ def test_aggregate_temporal_period(
         resample_cube_temporal(
             data=input_cube, target=target_cube, dimension="time", valid_within=None
         )
+
+
+@pytest.mark.parametrize("size", [(30, 30, 20, 4)])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_resample_spatial_dataset(temporal_interval, bounding_box, random_raster_data):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+    output_cube = resample_spatial(data=input_cube, projection=3857, resolution=30)
+    assert isinstance(output_cube, xr.Dataset)
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    for var in output_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)
+
+
+@pytest.mark.parametrize("size", [(30, 30, 20, 4)])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_resample_cube_spatial_dataset(
+    temporal_interval, bounding_box, random_raster_data
+):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+    target_cube = resample_spatial(data=input_cube, projection=3857, resolution=30)
+    output_cube = resample_cube_spatial(data=input_cube, target=target_cube)
+    assert isinstance(output_cube, xr.Dataset)
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    for var in output_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)

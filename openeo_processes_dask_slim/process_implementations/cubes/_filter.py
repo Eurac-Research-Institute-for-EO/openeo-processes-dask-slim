@@ -57,7 +57,7 @@ def filter_temporal(
             raise TooManyDimensions(
                 f"The data cube contains multiple temporal dimensions: {temporal_dims}. The parameter `dimension` must be specified."
             )
-    applicable_temporal_dimension = temporal_dims[0]
+        applicable_temporal_dimension = temporal_dims[0]
 
     # This line raises a deprecation warning, which according to this thread
     # will never actually be deprecated:
