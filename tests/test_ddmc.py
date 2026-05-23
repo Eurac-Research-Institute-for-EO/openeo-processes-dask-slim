@@ -36,9 +36,9 @@ def test_ddmc_instance_dims(
 
     data = ddmc(input_cube)
 
-    assert isinstance(data, xr.DataArray)
-    assert set(input_cube.dims).issubset(set(data.dims))
-    assert "bands" in data.dims
+    assert isinstance(data, xr.Dataset)
+    assert set(data.data_vars) == {"midcl", "dc", "lowcl"}
+    assert set(input_cube.dims).issubset(set(next(iter(data.data_vars.values())).dims))
 
 
 @pytest.mark.parametrize("size", [(30, 30, 20, 5)])
@@ -54,8 +54,11 @@ def test_ddmc_target_band(
         backend="dask",
     )
 
-    data_band = ddmc(data=input_cube, target_band="ddmc")
-    assert "ddmc" in data_band.dims
+    data_band = ddmc(data=input_cube)
+    assert isinstance(data_band, xr.Dataset)
+    assert "midcl" in data_band.data_vars
+    assert "dc" in data_band.data_vars
+    assert "lowcl" in data_band.data_vars
 
 
 @pytest.mark.parametrize("size", [(30, 30, 20, 5)])
