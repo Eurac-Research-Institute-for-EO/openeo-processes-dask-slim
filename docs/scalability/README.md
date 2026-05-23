@@ -47,6 +47,7 @@ The migration was completed on `dev_remodel` in reviewable phases:
 | `022a912` | Added Dataset support for random forest prediction inputs. |
 | `2f4ec02`, `4711606` | Enforced Dataset at public RasterCube boundaries and made Dataset the default raster test fixture. |
 | `fd075db` | Fixed `Dataset.dims` mapping compatibility in `apply_neighborhood_intertwin`. |
+| `3e3ad49`–`11612fd` | Review-fix cycle: native Dataset merge, removed `.compute()` in predict, per-variable attrs preservation across `to_array` bridges. |
 
 ## Known patterns that break laziness
 
@@ -56,17 +57,13 @@ The migration was completed on `dev_remodel` in reviewable phases:
 
 ## Bounded DataArray bridges
 
-The migration rejects `xr.DataArray` as a public RasterCube input, but some internals still need a DataArray-shaped representation:
+Some internals still need a DataArray-shaped representation. These bridges are local, lazy for dask-backed arrays, and preserve variable order and attributes via `_capture_var_metadata`/`_restore_var_metadata`:
 
 - Virtual band operations use `to_array(dim="bands")` because xarray has no real Dataset dimension for data variables.
 - `run_udf` adapts Dataset input to the openEO UDF `XarrayDataCube` interface and converts the result back to Dataset.
 - `fit_curve` bridges Dataset input through a band axis while fitting, then restores the Dataset shape.
-- `merge_cubes` can bridge through DataArray when an overlap resolver is expressed along a band dimension.
+- `merge_cubes` uses native Dataset merge (no bridge) — introduced in Phase 1 of the review-fix cycle.
 
-These bridges are acceptable only when they are local, lazy for dask-backed arrays, preserve variable order and attributes where possible, and return Dataset at the public process boundary.
+## Non-raster paths
 
-## DataArray fallback in non-migrated paths
-
-Some processes (e.g., `vector_buffer`, `load_geojson`) operate on `VectorCube`, not `RasterCube`, and are unaffected by the Dataset migration. Other non-raster processes (`dates.py`, `text.py`, `math.py` scalars) work on plain arrays or scalars.
-
-Processes that accept `RasterCube` but have not been migrated to Dataset-native patterns will fail with `TypeError: expects an xarray.Dataset RasterCube`. The `ensure_raster_cube` guard at the public boundary catches these early.
+Processes that operate on `VectorCube` (e.g., `vector_buffer`, `load_geojson`) or scalars (`dates.py`, `text.py`, `math.py`) are unaffected by the Dataset migration.

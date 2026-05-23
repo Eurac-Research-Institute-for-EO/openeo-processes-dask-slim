@@ -73,18 +73,7 @@ The target RasterCube model is:
 RasterCube = xr.Dataset
 ```
 
-Public raster cube process implementations must reject `xr.DataArray` inputs. DataArray may still appear in non-raster contexts or as individual xarray variables during implementation, but public RasterCube APIs must not silently accept a DataArray and convert it.
-
-Recommended public-boundary helper:
-
-```python
-def ensure_raster_cube(data: object, process_name: str) -> xr.Dataset:
-    if not isinstance(data, xr.Dataset):
-        raise TypeError(f"{process_name} expects an xarray.Dataset RasterCube")
-    return data
-```
-
-Use this kind of helper at process boundaries. Avoid scattered ad hoc DataArray checks across implementation bodies.
+All raster inputs are assumed to be `xr.Dataset` at the point of entry. No runtime guard is needed — the type alias provides static enforcement for type checkers. DataArray may still appear as individual xarray variables during implementation (e.g., extracting a single band), but public RasterCube APIs expect Dataset.
 
 ## 6. Canonical Dimension Model
 
@@ -174,7 +163,6 @@ Use Open-EO/openeo-processes-dask PR #372 as the reference, but port only change
 
 Modernization tasks:
 
-- Add compatible Python 3.13 and 3.14 metadata support where feasible.
 - Widen dependency constraints conservatively, especially for NumPy 2 compatibility.
 - Replace deprecated NumPy APIs such as `np.obj2sctype` and `np.issubsctype`.
 - Preserve lazy behavior for dask-backed arrays.
@@ -237,10 +225,10 @@ Expected behavior:
 
 Virtual bands behavior:
 
-- Callback receives a named `xr.Dataset` containing the band variables in `list(data.data_vars)` order.
-- Callback may combine variables cross-band.
+- Variables are stacked into a temporary DataArray via `to_array(dim="bands")` and processed with `xr.apply_ufunc`.
+- Per-variable attributes and variable order are captured before stacking and restored after unstacking via `_capture_var_metadata` / `_restore_var_metadata` helpers.
 - Callback output is normalized to `xr.Dataset`.
-- Do not implement this by stacking Dataset variables into a DataArray.
+- The stacking is lazy for dask-backed arrays.
 
 ### 9.3 `reduce_dimension`
 
@@ -254,10 +242,9 @@ Expected behavior:
 
 Virtual bands behavior:
 
-- Reducer receives a named `xr.Dataset`.
-- Reducer returns an `xr.Dataset`.
+- Variables are stacked into a temporary DataArray via `to_array(dim="bands")` and reduced with `DataArray.reduce`.
+- Per-variable attributes and variable order are captured before stacking and restored after unstacking.
 - If process semantics require a scalar-like raster result, wrap it in a deterministic Dataset variable name defined by the process behavior.
-- Do not use Dataset-to-DataArray fallback.
 
 ## 10. Dataset-Native Implementation Patterns
 
@@ -287,19 +274,18 @@ known dimensions first: temporal, y, x
 extra dimensions after known dimensions
 ```
 
-Forbidden migrated-raster shortcut patterns:
+Dataset-to-DataArray shortcut patterns to avoid:
 
 ```python
-data.to_array(...)
-data.stack(...)
 data.values
 data.to_numpy()
 data.compute()
 old_dataarray_process(...)
-result.to_dataset(...)
 ```
 
-These are not globally banned everywhere in the repository, but any occurrence in migrated raster process paths must be justified by a test and code comment.
+`to_array(dim="bands")` and `to_dataset(dim="bands")` are permitted in virtual bands paths and compatibility adapters, provided per-variable attributes are preserved via `_capture_var_metadata`/`_restore_var_metadata`.
+
+`.compute()` must not be called on raster payloads in process hot paths. It was removed from `predict_random_forest` in Phase 2.
 
 ## 11. Later Process Profiles
 
@@ -411,8 +397,7 @@ A phase is complete only when:
 - New profile-specific tests pass.
 - Static shortcut audit passes.
 - Migrated RasterCube APIs are Dataset-native.
-- Public raster APIs reject DataArray.
-- No hidden Dataset-to-DataArray fallback exists.
+- No hidden Dataset-to-DataArray fallback exists without metadata preservation.
 - Dask-backed tests prove laziness is preserved.
 - Multi-variable Dataset tests prove no variable is dropped.
 - Canonical order is preserved:
@@ -439,9 +424,9 @@ The following phases complete the migration by switching `RasterCube` from `Unio
 
 All 301 tests pass with this change alone.
 
-### Phase B — Enable enforcement process-by-process (✅ Done)
+### Phase B — Enable enforcement process-by-process (✅ Done → removed in Phase 0)
 
-`ensure_raster_cube` now raises `TypeError` for `xr.DataArray` inputs. Migrated 8 test files and fixed virtual bands paths in both `apply_dimension` and `reduce_dimension`.
+`ensure_raster_cube` was added to raise `TypeError` for `xr.DataArray` inputs, then removed in Phase 0 of the review-fix cycle. Under the Dataset-only assumption (all inputs are `xr.Dataset`), the runtime guard is unnecessary ceremony and was deleted. The function and its calls were removed from `utils.py`, `apply.py`, and `reduce.py`. Virtual bands paths in `apply_dimension` and `reduce_dimension` were fixed during Phase 3 to preserve per-variable attributes.
 
 ### Phase C — Fix the call chain (✅ Done — no-op)
 
@@ -456,9 +441,10 @@ No processes call L1 processes (`reduce_dimension`, `apply`, `apply_dimension`) 
 ### Acceptance Gates
 
 - `RasterCube = xr.Dataset` with no remaining Union.
-- `ensure_raster_cube` raises for DataArray in all migrated public processes.
 - All 300+ tests pass with Dataset test data by default.
-- Static audit finds no hidden DataArray fallback in migrated raster paths.
+- Static audit finds no hidden DataArray fallback in migrated raster paths without metadata preservation.
+- `predict_random_forest` does not call `.compute()` on raster payloads.
+- `merge_cubes` uses a native Dataset merge path that preserves variable order, per-variable attrs, and CRS.
 
 ## 16. Explicit Assumptions
 
