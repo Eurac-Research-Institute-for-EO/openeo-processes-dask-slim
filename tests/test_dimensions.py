@@ -240,6 +240,12 @@ def test_rename_labels_virtual_bands_mismatch():
         rename_labels(ds, "bands", ["only_one"])
 
 
+def test_create_data_cube():
+    cube = create_data_cube()
+    assert isinstance(cube, xr.Dataset)
+    assert len(cube.data_vars) == 0
+
+
 def test_rename_labels_virtual_bands_nonexistent_source():
     ds = xr.Dataset(
         {
