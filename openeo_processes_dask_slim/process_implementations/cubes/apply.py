@@ -5,6 +5,10 @@ import odc.geo.xr
 import scipy.ndimage
 import xarray as xr
 
+from openeo_processes_dask_slim.process_implementations.cubes.utils import (
+    _capture_var_metadata,
+    _restore_var_metadata,
+)
 from openeo_processes_dask_slim.process_implementations.data_model import RasterCube
 from openeo_processes_dask_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
@@ -43,6 +47,7 @@ def apply_dimension(
         context = {}
 
     if dimension == "bands" and isinstance(data, xr.Dataset):
+        meta = _capture_var_metadata(data)
         band_array = data.to_array(dim="bands")
         positional_parameters = {"data": 0}
         named_parameters = {"context": context}
@@ -68,9 +73,10 @@ def apply_dimension(
             keep_attrs=True,
         )
         if isinstance(result, xr.DataArray) and "bands" in result.dims:
-            return result.to_dataset(dim="bands")
-        if not isinstance(result, xr.Dataset):
+            result = result.to_dataset(dim="bands")
+        elif not isinstance(result, xr.Dataset):
             result = result.to_dataset(name="result")
+        result = _restore_var_metadata(result, meta)
         if data.odc.crs is not None:
             try:
                 result = odc.geo.xr.assign_crs(result, crs=data.odc.crs)
