@@ -11,7 +11,7 @@ from openeo_processes_dask_slim.process_implementations.cubes.apply import (
     apply_dimension,
     apply_kernel,
 )
-from tests.general_checks import assert_numpy_equals_dask_numpy, general_output_checks
+from tests.general_checks import general_output_checks
 from tests.mockdata import create_fake_rastercube
 
 
@@ -106,10 +106,12 @@ def test_apply_dimension_ordering_processes(
     )
 
     for var_name in input_cube.data_vars:
-        var_data = input_cube[var_name].data
+        var_data = input_cube[var_name].data.compute()
         expected_order = np.argsort(var_data, kind="mergesort", axis=0)
-        np.testing.assert_array_equal(output_cube_order[var_name].data, expected_order)
-        assert isinstance(output_cube_order[var_name].data, np.ndarray)
+        assert isinstance(output_cube_order[var_name].data, da.Array)
+        np.testing.assert_array_equal(
+            output_cube_order[var_name].data.compute(), expected_order
+        )
 
     _process_rearrange = partial(
         process_registry["rearrange"].implementation,
@@ -136,17 +138,19 @@ def test_apply_dimension_ordering_processes(
     )
 
     for var_name in input_cube.data_vars:
-        var_data = input_cube[var_name].data
+        var_data = input_cube[var_name].data.compute()
         expected_sort = np.sort(var_data, axis=0)
-        np.testing.assert_array_equal(output_cube_sort[var_name].data, expected_sort)
-        assert isinstance(output_cube_sort[var_name].data, np.ndarray)
+        assert isinstance(output_cube_sort[var_name].data, da.Array)
+        np.testing.assert_array_equal(
+            output_cube_sort[var_name].data.compute(), expected_sort
+        )
 
         expected_order = np.argsort(var_data, kind="mergesort", axis=0)
         rearrange_by_expected = np.take_along_axis(
             var_data, indices=expected_order, axis=0
         )
         np.testing.assert_array_equal(
-            output_cube_sort[var_name].data, rearrange_by_expected
+            output_cube_sort[var_name].data.compute(), rearrange_by_expected
         )
 
 
