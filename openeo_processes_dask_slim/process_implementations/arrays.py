@@ -292,7 +292,12 @@ def array_find(
     value: Any,
     reverse: Optional[bool] = False,
     axis: Optional[int] = None,
-) -> np.number:
+):
+    """Return index of first occurrence of value.
+
+    Returns filled array (not masked). For axis=None with single match,
+    returns a scalar instead of a 1-element array.
+    """
     labels, data = get_labels(data, axis)
 
     if reverse:
