@@ -19,6 +19,7 @@ from openeo_processes_dask_slim.process_implementations.ml import (
     fit_curve,
     fit_regr_random_forest,
     predict_curve,
+    predict_random_forest,
 )
 from tests.mockdata import create_fake_rastercube
 
@@ -121,3 +122,27 @@ def test_curve_fitting(temporal_interval, bounding_box, random_raster_data):
     assert len(predictions.coords[origin_cube.openeo.temporal_dims[0]]) == len(labels)
     assert "param" not in predictions.dims
     assert result.odc.crs == predictions.odc.crs
+
+
+def test_predict_random_forest_dask(vector_data_cube, dask_client, temporal_interval, bounding_box):
+    predictors_vars = ["value2"]
+    target_var = "value1"
+
+    model = fit_regr_random_forest(
+        predictors=vector_data_cube,
+        target=vector_data_cube,
+        target_var=target_var,
+        predictors_vars=predictors_vars,
+    )
+
+    n_features = len(model.feature_names)
+    shape = (10, n_features)
+    data = np.random.default_rng(42).random(shape).astype(np.float64)
+    ds = xr.Dataset(
+        {"B02": xr.DataArray(dask.array.from_array(data, chunks=-1), dims=["y", "x"])}
+    )
+
+    result = predict_random_forest(data=ds, model=model)
+    assert isinstance(result, xr.Dataset)
+    assert "B02" in result.data_vars
+    assert isinstance(result["B02"].data, dask.array.Array)

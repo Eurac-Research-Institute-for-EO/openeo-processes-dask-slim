@@ -138,8 +138,6 @@ def predict_random_forest(
         for name, var in data.data_vars.items():
             var_data = var.data
             n_features = len(model.feature_names)
-            if isinstance(var_data, da.Array):
-                var_data = var_data.compute()
             if n_features != var_data.shape[axis]:
                 raise Exception(
                     f"Number of predictors does not match number of features that were trained with."
