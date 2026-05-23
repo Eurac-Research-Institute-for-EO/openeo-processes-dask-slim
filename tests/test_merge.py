@@ -249,9 +249,7 @@ def test_merge_cubes_preserves_var_order(
     cube_a = cube_a[["B08", "B02", "B03"]]
 
     cube_b = create_fake_rastercube(
-        data=np.random.default_rng(42)
-        .integers(-100, 100, size=(6, 5, 4, 1))
-        .astype(np.float64),
+        data=np.random.default_rng(42).integers(-100, 100, size=(6, 5, 4, 1)).astype(np.float64),
         spatial_extent=bounding_box,
         temporal_extent=temporal_interval,
         bands=["B04"],
@@ -276,11 +274,7 @@ def test_merge_cubes_preserves_var_attrs(
         backend="numpy",
         as_dataset=True,
     )
-    cube2_data = (
-        np.random.default_rng(77)
-        .integers(-100, 100, size=(6, 5, 4, 2))
-        .astype(np.float64)
-    )
+    cube2_data = np.random.default_rng(77).integers(-100, 100, size=(6, 5, 4, 2)).astype(np.float64)
     cube2 = create_fake_rastercube(
         data=cube2_data,
         spatial_extent=bounding_box,
@@ -317,11 +311,7 @@ def test_merge_cubes_preserves_dask(
         backend="dask",
         as_dataset=True,
     )
-    cube2_data = (
-        np.random.default_rng(55)
-        .integers(-100, 100, size=(6, 5, 4, 2))
-        .astype(np.float64)
-    )
+    cube2_data = np.random.default_rng(55).integers(-100, 100, size=(6, 5, 4, 2)).astype(np.float64)
     cube2 = create_fake_rastercube(
         data=cube2_data,
         spatial_extent=bounding_box,
