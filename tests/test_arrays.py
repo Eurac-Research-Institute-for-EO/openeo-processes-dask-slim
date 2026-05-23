@@ -670,12 +670,12 @@ def test_reduce_dimension(
     xr.testing.assert_equal(output_cube, xr.ones_like(output_cube))
 
     data = input_cube[band_names[0]].values
-    data[0, 0, 0] = 99999
+    data[0, 0, 0] = 999999
     input_cube[band_names[0]] = (input_cube[band_names[0]].dims, data)
     _process = partial(
         process_registry["array_contains"].implementation,
         data=ParameterReference(from_parameter="data"),
-        value=99999,
+        value=999999,
     )
     output_cube = reduce_dimension(data=input_cube, reducer=_process, dimension="bands")
     general_output_checks(
