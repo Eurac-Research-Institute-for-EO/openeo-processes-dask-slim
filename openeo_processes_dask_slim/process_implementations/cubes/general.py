@@ -65,6 +65,9 @@ def trim_cube(data) -> RasterCube:
 
 
 def dimension_labels(data: RasterCube, dimension: str) -> ArrayLike:
+    if dimension == "bands" and isinstance(data, xr.Dataset):
+        return np.array(list(data.data_vars))
+
     if dimension not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
@@ -161,6 +164,30 @@ def rename_labels(
     target: list[Union[str, float]],
     source: Optional[list[Union[str, float]]] = [],
 ):
+    if dimension == "bands" and isinstance(data, xr.Dataset):
+        if len(source) > 0:
+            if len(source) != len(target):
+                raise Exception(
+                    f"LabelMismatch - The number of labels in the parameters `source` and `target` don't match."
+                )
+            for s in source:
+                if s not in data.data_vars:
+                    raise Exception(
+                        f"LabelNotAvailable - A label with the specified name does not exist."
+                    )
+            mapping = dict(zip(source, target))
+        else:
+            if len(target) != len(data.data_vars):
+                raise Exception(
+                    f"LabelMismatch - The number of labels in the parameters `source` and `target` don't match."
+                )
+            mapping = dict(zip(data.data_vars, target))
+        renamed = {}
+        for var_name in data.data_vars:
+            new_name = mapping.get(var_name, var_name)
+            renamed[new_name] = data[var_name]
+        return xr.Dataset(renamed, coords=data.coords, attrs=data.attrs)
+
     data_rename = copy.deepcopy(data)
     if dimension not in data_rename.dims:
         raise DimensionNotAvailable(
