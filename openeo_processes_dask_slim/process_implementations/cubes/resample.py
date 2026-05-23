@@ -199,7 +199,7 @@ def resample_cube_temporal(data, target, dimension=None, valid_within=None):
     times_at_target_time = data[dimension].values[index]
     new_data = data.loc[{dimension: times_at_target_time}]
     filter_values = new_data[dimension].values
-    new_data[dimension] = target[dimension].values
+    new_data = new_data.assign_coords({dimension: target[dimension].values})
     # valid_within
     if valid_within is None:
         new_data = new_data

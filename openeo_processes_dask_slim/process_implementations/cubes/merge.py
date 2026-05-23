@@ -65,17 +65,16 @@ def merge_cubes(
         )
 
     if isinstance(cube1, xr.Dataset):
-        if overlap_resolver is not None:
-            raise NotImplementedError(
-                "merge_cubes with overlap_resolver is not yet supported for Dataset inputs."
-            )
-        c1 = cube1.drop_vars(
-            [c for c in cube1.coords if c not in cube1.dims], errors="ignore"
+        dim_name = "bands"
+        cube1_da = cube1.to_array(dim=dim_name)
+        cube2_da = cube2.to_array(dim=dim_name)
+        result_da = merge_cubes(
+            cube1_da,
+            cube2_da,
+            overlap_resolver=overlap_resolver,
+            context=context,
         )
-        c2 = cube2.drop_vars(
-            [c for c in cube2.coords if c not in cube2.dims], errors="ignore"
-        )
-        return xr.merge([c1, c2], compat="override")
+        return result_da.to_dataset(dim=dim_name)
 
     # Align coordinates if they're very close numerically
     cube1, cube2 = _align_coordinates(cube1, cube2)

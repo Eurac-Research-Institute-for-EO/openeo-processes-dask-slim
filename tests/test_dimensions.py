@@ -26,9 +26,9 @@ def test_add_dimension(temporal_interval, bounding_box, random_raster_data):
     general_output_checks(
         input_cube=input_cube,
         output_cube=output_cube,
-        expected_dims=["x", "y", "t", "bands", "other"],
+        expected_dims=["x", "y", "t", "other"],
     )
-    assert output_cube.openeo.band_dims[0] == "bands"
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
     assert output_cube.openeo.temporal_dims[0] == "t"
     assert output_cube.openeo.spatial_dims == ("x", "y")
     assert output_cube.openeo.other_dims[0] == "other"
@@ -72,20 +72,15 @@ def test_drop_dimension(temporal_interval, bounding_box, random_raster_data):
         bands=["B02", "B04"],
         backend="dask",
     )
-    DIM_TO_DROP = "bands"
-
     with pytest.raises(DimensionNotAvailable):
         drop_dimension(input_cube, "notthere")
 
     with pytest.raises(DimensionLabelCountMismatch):
-        drop_dimension(input_cube, DIM_TO_DROP)
+        drop_dimension(input_cube, "x")
 
-    suitable_cube = input_cube.where(input_cube.bands == "B02", drop=True)
-
-    output_cube = drop_dimension(suitable_cube, DIM_TO_DROP)
-    DIMS_TO_KEEP = tuple(filter(lambda y: y != DIM_TO_DROP, input_cube.dims))
-    assert DIM_TO_DROP not in output_cube.dims
-    assert DIMS_TO_KEEP == output_cube.dims
+    output_cube = drop_dimension(input_cube, "t")
+    assert "t" not in output_cube.dims
+    assert set(output_cube.dims) == {"x", "y"}
 
 
 @pytest.mark.parametrize("size", [(30, 30, 1, 2)])
@@ -98,12 +93,12 @@ def test_rename_dimension(temporal_interval, bounding_box, random_raster_data):
         bands=["B02", "B04"],
         backend="dask",
     )
-    output_cube = rename_dimension(input_cube, source="bands", target="spectral")
+    output_cube = rename_dimension(input_cube, source="t", target="time")
 
-    assert "bands" not in output_cube.dims
-    assert "spectral" in output_cube.dims
-    assert "spectral" in output_cube.openeo.band_dims
-    assert "spectral" not in output_cube.openeo.spatial_dims
+    assert "t" not in output_cube.dims
+    assert "time" in output_cube.dims
+    assert "time" in output_cube.openeo.temporal_dims
+    assert "time" not in output_cube.openeo.spatial_dims
 
     with pytest.raises(DimensionNotAvailable):
         rename_dimension(input_cube, source="notthere", target="there")
@@ -122,25 +117,26 @@ def test_rename_labels(temporal_interval, bounding_box, random_raster_data):
         bands=["B02", "B03", "B04", "B05", "B08"],
         backend="dask",
     )
-    output_cube = rename_labels(
-        input_cube, dimension="bands", target=["blue", "green", "red", "rededge", "nir"]
-    )
+    x_target = list(range(100, 130))
+    output_cube = rename_labels(input_cube, dimension="x", target=x_target)
 
-    assert "red" in output_cube["bands"]
+    assert 100 in output_cube["x"]
 
     with pytest.raises(DimensionNotAvailable):
-        rename_labels(input_cube, dimension="band", target=["blue"])
+        rename_labels(input_cube, dimension="nonexistent", target=[0])
 
     with pytest.raises(Exception):
         rename_labels(
-            input_cube, dimension="bands", target=["B02", "B03", "B04", "B05", "B08"]
+            input_cube,
+            dimension="x",
+            target=[float(input_cube["x"].values[0])] + list(range(100, 129)),
         )
 
     with pytest.raises(Exception):
         rename_labels(
             input_cube,
-            dimension="bands",
-            target=["B02", "B03", "B04", "B05", "B08", "B11", "B12"],
+            dimension="x",
+            target=list(range(100, 150)),
         )
 
 
@@ -177,9 +173,9 @@ def test_trim_cube(temporal_interval, bounding_box, random_raster_data):
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
     )
-    input_cube[:, :, :, 2] = np.zeros((30, 30, 20)) * np.nan
+    input_cube["B04"] = (("x", "y", "t"), np.zeros((30, 30, 20)) * np.nan)
     output_cube = trim_cube(input_cube)
-    assert output_cube.shape == (30, 30, 20, 3)
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
 
     all_nan = input_cube * np.nan
     with pytest.raises(ValueError):

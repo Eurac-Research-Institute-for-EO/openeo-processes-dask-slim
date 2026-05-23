@@ -178,10 +178,11 @@ def test_merge_cubes(
         backend="dask",
     )
 
-    cube_1 = origin_cube.sel({"bands": "B01"})
-    cube_2 = origin_cube.sel({"bands": "B02"})
-    cube_1[:, :, :] = True
-    cube_2[:, :, :] = False
+    cube_1 = origin_cube.copy()
+    cube_2 = origin_cube.copy()
+    for var in cube_1.data_vars:
+        cube_1[var] = xr.full_like(cube_1[var], True)
+        cube_2[var] = xr.full_like(cube_2[var], False)
 
     overlap_resolver = partial(
         process_registry["and"].implementation,
@@ -189,8 +190,9 @@ def test_merge_cubes(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert merged_cube.dims == ("x", "y", "t")
-    assert isinstance(merged_cube.data, da.Array)
+    assert set(merged_cube.dims) == {"x", "y", "t"}
+    for var in merged_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)
     xr.testing.assert_equal(
         merged_cube, xr.zeros_like(merged_cube)
     )  # and(True, False) == False (zeros_like)
@@ -201,8 +203,9 @@ def test_merge_cubes(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert merged_cube.dims == ("x", "y", "t")
-    assert isinstance(merged_cube.data, da.Array)
+    assert set(merged_cube.dims) == {"x", "y", "t"}
+    for var in merged_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)
     xr.testing.assert_equal(
         merged_cube, xr.ones_like(merged_cube)
     )  # or(True, False) == True (ones_like)
@@ -213,8 +216,9 @@ def test_merge_cubes(
         y=ParameterReference(from_parameter="y"),
     )
     merged_cube = merge_cubes(cube_1, cube_2, overlap_resolver=overlap_resolver)
-    assert merged_cube.dims == ("x", "y", "t")
-    assert isinstance(merged_cube.data, da.Array)
+    assert set(merged_cube.dims) == {"x", "y", "t"}
+    for var in merged_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)
     xr.testing.assert_equal(
         merged_cube, xr.ones_like(merged_cube)
     )  # xor(True, False) == True (ones_like)

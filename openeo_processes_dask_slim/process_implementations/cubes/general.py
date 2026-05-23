@@ -48,7 +48,15 @@ def trim_cube(data) -> RasterCube:
         ):
             values = data[dim].values
             other_dims = [d for d in data.dims if d != dim]
-            available_data = values[(np.isnan(data)).all(dim=other_dims) == 0]
+            if isinstance(data, xr.Dataset):
+                is_nan = xr.ufuncs.isnan(data)
+                all_nan = is_nan.all(dim=other_dims)
+                all_nan_arr = all_nan.to_array()
+                combined = all_nan_arr.all(dim=all_nan_arr.dims[0])
+                available_mask = ~combined.values
+            else:
+                available_mask = ~(np.isnan(data)).all(dim=other_dims).values
+            available_data = values[available_mask]
             if len(available_data) == 0:
                 raise ValueError(f"Data contains NaN values only. ")
             data = data.sel({dim: available_data})

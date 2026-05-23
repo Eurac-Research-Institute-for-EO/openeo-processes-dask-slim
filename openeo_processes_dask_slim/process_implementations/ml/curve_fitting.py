@@ -21,6 +21,10 @@ def fit_curve(
     dimension: str,
     ignore_nodata: bool = True,
 ):
+    was_dataset = isinstance(data, xr.Dataset)
+    if was_dataset:
+        data = data.to_array(dim="bands")
+
     if dimension not in data.dims:
         raise DimensionNotAvailable(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
@@ -38,14 +42,16 @@ def fit_curve(
         dates = np.asarray(data[dimension].values)
 
     if np.issubdtype(dates.dtype, np.datetime64):
-        timestep = [
-            (
-                (np.datetime64(x) - np.datetime64("1970-01-01", "s"))
-                / np.timedelta64(1, "s")
-            )
-            for x in dates
-        ]
-        data[dimension] = np.array(timestep)
+        timestep = np.array(
+            [
+                (
+                    (np.datetime64(x) - np.datetime64("1970-01-01", "s"))
+                    / np.timedelta64(1, "s")
+                )
+                for x in dates
+            ]
+        )
+        data = data.assign_coords({dimension: timestep})
 
     dims_before = list(data.dims)
 
@@ -95,6 +101,9 @@ def fit_curve(
         fit_result = fit_result.expand_dims(dim="bands")
 
     fit_result = fit_result.transpose(*expected_dims_after)
+
+    if was_dataset:
+        fit_result = fit_result.to_dataset(dim="bands")
 
     return fit_result
 
@@ -159,6 +168,6 @@ def predict_curve(
     predictions = predictions.assign_coords({dimension: labels.data})
 
     if labels_were_datetime:
-        predictions[dimension] = initial_labels
+        predictions = predictions.assign_coords({dimension: initial_labels})
 
     return predictions

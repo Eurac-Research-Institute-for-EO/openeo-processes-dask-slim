@@ -80,20 +80,22 @@ def test_curve_fitting(temporal_interval, bounding_box, random_raster_data):
         origin_cube, parameters=parameters, function=_process, dimension="t"
     )
     assert len(result.param) == 3
-    assert isinstance(result.data, dask.array.Array)
+
+    assert isinstance(result, xr.Dataset)
+    for var in result.data_vars:
+        assert isinstance(result[var].data, dask.array.Array)
     assert result.odc.crs == origin_cube.odc.crs
 
-    assert len(result.coords["bands"]) == len(origin_cube.coords["bands"])
+    assert list(result.data_vars) == list(origin_cube.data_vars)
     assert len(result.coords["x"]) == len(origin_cube.coords["x"])
     assert len(result.coords["y"]) == len(origin_cube.coords["y"])
     assert len(result.coords["param"]) == len(parameters)
 
-    origin_cube_B02 = origin_cube.sel(bands=["B02"])
+    origin_cube_B02 = origin_cube[["B02"]]
     result_B02 = fit_curve(
         origin_cube_B02, parameters=parameters, function=_process, dimension="t"
     )
-    assert "bands" in result_B02.dims
-    assert result_B02["bands"].values == "B02"
+    assert list(result_B02.data_vars) == ["B02"]
 
     labels = dimension_labels(origin_cube, origin_cube.openeo.temporal_dims[0])
     predictions = predict_curve(
@@ -103,6 +105,7 @@ def test_curve_fitting(temporal_interval, bounding_box, random_raster_data):
         labels=labels,
     ).compute()
 
+    assert isinstance(predictions, xr.Dataset)
     assert len(predictions.coords[origin_cube.openeo.temporal_dims[0]]) == len(labels)
     assert "param" not in predictions.dims
     assert result.odc.crs == predictions.odc.crs

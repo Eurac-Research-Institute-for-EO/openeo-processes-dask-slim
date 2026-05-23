@@ -37,7 +37,8 @@ def test_ddmc_instance_dims(
     data = ddmc(input_cube)
 
     assert isinstance(data, xr.DataArray)
-    assert set(input_cube.dims) == set(data.dims)
+    assert set(input_cube.dims).issubset(set(data.dims))
+    assert "bands" in data.dims
 
 
 @pytest.mark.parametrize("size", [(30, 30, 20, 5)])

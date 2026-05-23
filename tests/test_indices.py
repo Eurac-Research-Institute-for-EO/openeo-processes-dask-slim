@@ -22,6 +22,7 @@ def test_ndvi(temporal_interval, bounding_box, random_raster_data, process_regis
         temporal_extent=temporal_interval,
         bands=["red", "nir"],
         backend="dask",
+        as_dataset=False,
     )
 
     # Test whether this works with different band names

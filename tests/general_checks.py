@@ -77,6 +77,12 @@ def assert_numpy_equals_dask_numpy(numpy_cube, dask_cube, func):
     numpy_result = func(numpy_cube)
     dask_result = func(dask_cube)
     general_output_checks(dask_cube, dask_result)
-    np.testing.assert_allclose(
-        numpy_result.data, dask_result.data.compute(), equal_nan=True
-    )
+    if isinstance(numpy_result, xr.Dataset):
+        for var in numpy_result.data_vars:
+            np.testing.assert_allclose(
+                numpy_result[var].data, dask_result[var].data.compute(), equal_nan=True
+            )
+    else:
+        np.testing.assert_allclose(
+            numpy_result.data, dask_result.data.compute(), equal_nan=True
+        )

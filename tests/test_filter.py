@@ -94,7 +94,7 @@ def test_filter_labels(
     )
 
     output_cube = filter_labels(data=input_cube, condition=_process, dimension="bands")
-    assert len(output_cube["bands"]) == 1
+    assert len(list(output_cube.data_vars)) == 1
 
 
 @pytest.mark.parametrize("size", [(1, 1, 1, 2)])
@@ -110,7 +110,7 @@ def test_filter_bands(temporal_interval, bounding_box, random_raster_data):
 
     output_cube = filter_bands(data=input_cube, bands=["SCL"])
 
-    assert output_cube["bands"].values == "SCL"
+    assert list(output_cube.data_vars) == ["SCL"]
 
 
 @pytest.mark.parametrize("size", [(30, 30, 1, 1)])

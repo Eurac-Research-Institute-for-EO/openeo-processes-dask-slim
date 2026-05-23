@@ -89,13 +89,15 @@ def aggregate_temporal(
     intervals_flat = np.unique(intervals_flat)
     data_copy = copy.deepcopy(data)
     t_coords = data_copy[t].values.astype(str)
-    data_copy[t] = np.array(t_coords, dtype="datetime64[s]").astype(float)
+    data_copy = data_copy.assign_coords(
+        {t: np.array(t_coords, dtype="datetime64[s]").astype(float)}
+    )
     grouped_data = data_copy.groupby_bins(t, bins=intervals_flat)
     positional_parameters = {"data": 0}
     groups = grouped_data.reduce(
         reducer, keep_attrs=True, positional_parameters=positional_parameters
     )
-    groups[t + "_bins"] = labels_nans
+    groups = groups.assign_coords({t + "_bins": labels_nans})
     data_agg_temp = groups.sel({t + "_bins": labels})
     data_agg_temp = data_agg_temp.rename({t + "_bins": t})
 
