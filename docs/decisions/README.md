@@ -1,3 +1,8 @@
-# Architecture Decision Records (ARDs)
+# Architecture Decision Records (ADRs)
 
-Place for architectural decisions to live. Inspired by https://github.com/joelparkerhenderson/architecture-decision-record.
+Inspired by https://github.com/joelparkerhenderson/architecture-decision-record.
+
+| ADR | Date |
+|---|---|
+| [Handle nodata in RasterCubes](handle-nodata-in-rastercubes.md) | 2023-05-05 |
+| [Dataset RasterCube migration](dataset-rastercube-migration.md) | 2026-05-23 |
