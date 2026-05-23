@@ -6,7 +6,7 @@ Date: 2026-05-23
 
 openEO raster cubes are logically multidimensional arrays with axes `(t, bands, y, x)`. The codebase historically represented them as `xr.DataArray` with a "bands" dimension. This worked, but had a fundamental mismatch: openEO bands are named labels with semantics, not just another axis. Every band carries its own metadata, CRS, andnodata handling — things a flat DataArray dimension struggles to preserve.
 
-The upstream `openeo-processes-dask` reference PR [#372](https://github.com/Open-EO/openeo-processes-dask/pull/372) adopted `xr.Dataset` to fix this. This repo follows suit.
+The upstream reference PR ([openeo-processes-dask#372](https://github.com/Open-EO/openeo-processes-dask/pull/372)) adopted `xr.Dataset` to fix this. This repo (`openeo-processes-dask-slim`) follows suit.
 
 ## Decision
 
