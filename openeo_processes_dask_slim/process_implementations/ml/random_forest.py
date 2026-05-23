@@ -134,21 +134,34 @@ def predict_random_forest(
             model = context["model"]
 
     if isinstance(data, xr.Dataset):
-        result_vars = {}
-        for name, var in data.data_vars.items():
-            var_data = var.data
-            n_features = len(model.feature_names)
-            if n_features != var_data.shape[axis]:
-                raise Exception(
-                    f"Number of predictors does not match number of features that were trained with."
-                )
-            X = np.moveaxis(var_data, axis, 0).reshape((n_features, -1)).transpose()
-            client = dask.distributed.default_client()
-            preds_flat = dxgb.inplace_predict(client, model, X)
-            output_shape = list(var_data.shape)
-            output_shape[axis] = 1
-            result_vars[name] = (var.dims, preds_flat.reshape(tuple(output_shape)))
-        return xr.Dataset(result_vars, coords=data.coords, attrs=data.attrs)
+        feature_names = model.feature_names
+        n_features = len(feature_names)
+        data_vars = list(data.data_vars)
+        if len(data_vars) != n_features:
+            raise Exception(
+                f"Number of data variables ({len(data_vars)}) does not match "
+                f"number of features the model was trained with ({n_features})."
+            )
+        if set(data_vars) != set(feature_names):
+            ordered_vars = data_vars
+        else:
+            ordered_vars = feature_names
+        sample_var = data[ordered_vars[0]]
+        stacks = [data[name].data for name in ordered_vars]
+        stacked = da.stack(stacks, axis=0)
+        if axis < 0:
+            axis = stacked.ndim + axis
+        X = da.moveaxis(stacked, 0, axis)
+        X_flat = da.moveaxis(X, axis, 0).reshape((n_features, -1)).transpose()
+        client = dask.distributed.default_client()
+        preds_flat = dxgb.inplace_predict(client, model, X_flat)
+        output_shape = list(sample_var.shape)
+        result = xr.Dataset(
+            {"result": (sample_var.dims, preds_flat.reshape(tuple(output_shape)))},
+            coords=data.coords,
+            attrs=data.attrs,
+        )
+        return result
 
     n_features = len(model.feature_names)
     if n_features != data.shape[axis]:
