@@ -72,10 +72,14 @@ def merge_cubes(
         in_both = vars1 & vars2
         only_in1 = vars1 - vars2
         only_in2 = vars2 - vars1
-        var_order = list(cube1.data_vars) + [v for v in cube2.data_vars if v not in cube1.data_vars]
+        var_order = list(cube1.data_vars) + [
+            v for v in cube2.data_vars if v not in cube1.data_vars
+        ]
 
         var_attrs = {v: cube1[v].attrs for v in cube1.data_vars}
-        var_attrs.update({v: cube2[v].attrs for v in cube2.data_vars if v not in var_attrs})
+        var_attrs.update(
+            {v: cube2[v].attrs for v in cube2.data_vars if v not in var_attrs}
+        )
 
         if in_both and (only_in1 or only_in2) and overlap_resolver is None:
             raise OverlapResolverMissing(
@@ -85,7 +89,10 @@ def merge_cubes(
         result_vars = {}
         for var in in_both:
             result_vars[var] = merge_cubes(
-                cube1[var], cube2[var], overlap_resolver=overlap_resolver, context=context
+                cube1[var],
+                cube2[var],
+                overlap_resolver=overlap_resolver,
+                context=context,
             )
         for var in only_in1:
             result_vars[var] = cube1[var]
@@ -175,7 +182,9 @@ def merge_cubes(
                 previous_dim_order = list(cube1.dims) + [
                     dim for dim in cube2.dims if dim not in cube1.dims
                 ]
-                has_band_dim = len(cube1.openeo.band_dims) > 0 and len(cube2.openeo.band_dims) > 0
+                has_band_dim = (
+                    len(cube1.openeo.band_dims) > 0 and len(cube2.openeo.band_dims) > 0
+                )
                 if has_band_dim:
                     band_dim = cube1.openeo.band_dims[0]
                     # Same reordering issue mentioned above
