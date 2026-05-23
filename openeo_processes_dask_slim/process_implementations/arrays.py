@@ -89,9 +89,7 @@ def _sort(data, axis):
 def _argsort(data, axis):
     data, axis = _normalize_sort_axis(data, axis)
     if _is_dask_array(data):
-        return data.map_blocks(
-            np.argsort, kind="mergesort", axis=axis, dtype=np.intp
-        )
+        return data.map_blocks(np.argsort, kind="mergesort", axis=axis, dtype=np.intp)
     return np.argsort(data, kind="mergesort", axis=axis)
 
 
@@ -515,6 +513,7 @@ def first(
         data = data.flatten()
         axis = 0
     if ignore_nodata:
+
         def first_valid(values):
             valid = ~pd.isnull(values)
             if np.any(valid):
