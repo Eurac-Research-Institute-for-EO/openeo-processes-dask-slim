@@ -128,6 +128,7 @@ def test_filter_bbox(
         temporal_extent=temporal_interval,
         bands=["B02"],
         backend="dask",
+        as_dataset=True,
     )
 
     output_cube = filter_bbox(data=input_cube, extent=bounding_box_small)

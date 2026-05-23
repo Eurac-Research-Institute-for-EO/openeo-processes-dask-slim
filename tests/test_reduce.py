@@ -36,6 +36,7 @@ def test_reduce_rqa(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(
@@ -43,7 +44,6 @@ def test_reduce_rqa(
         data=ParameterReference(from_parameter="data"),
         threshold=0.5,
     )
-    print(os.system("pwd"))
     output_cube = reduce_dimension(data=input_cube, reducer=_process, dimension="t")
 
     general_output_checks(
@@ -65,6 +65,7 @@ def test_reduce_dimension(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(

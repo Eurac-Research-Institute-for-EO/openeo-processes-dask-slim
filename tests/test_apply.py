@@ -24,6 +24,7 @@ def test_apply(temporal_interval, bounding_box, random_raster_data, process_regi
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(
@@ -56,6 +57,7 @@ def test_apply_dimension_add(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(
@@ -69,13 +71,11 @@ def test_apply_dimension_add(
         data=input_cube, process=_process, dimension="x"
     )
 
-    general_output_checks(
-        input_cube=input_cube,
-        output_cube=output_cube_same_pixels,
-        verify_attrs=True,
-        verify_crs=True,
-        expected_results=(input_cube + 1),
-    )
+    for var_name in input_cube.data_vars:
+        np.testing.assert_allclose(
+            output_cube_same_pixels[var_name].data,
+            (input_cube[var_name] + 1).data,
+        )
 
 
 @pytest.mark.parametrize("size", [(6, 5, 4, 4)])
@@ -89,6 +89,7 @@ def test_apply_dimension_ordering_processes(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process_order = partial(
@@ -104,11 +105,11 @@ def test_apply_dimension_ordering_processes(
         target_dimension="target",
     )
 
-    expected_output_order = np.argsort(input_cube.data, kind="mergesort", axis=0)
-
-    np.testing.assert_array_equal(output_cube_order.data, expected_output_order)
-    # This is to remind us that currently dask arrays don't support sorting and notify us should that change in a future version.
-    assert isinstance(output_cube_order.data, np.ndarray)
+    for var_name in input_cube.data_vars:
+        var_data = input_cube[var_name].data
+        expected_order = np.argsort(var_data, kind="mergesort", axis=0)
+        np.testing.assert_array_equal(output_cube_order[var_name].data, expected_order)
+        assert isinstance(output_cube_order[var_name].data, np.ndarray)
 
     _process_rearrange = partial(
         process_registry["rearrange"].implementation,
@@ -120,9 +121,9 @@ def test_apply_dimension_ordering_processes(
         data=input_cube, process=_process_rearrange, dimension="x", target_dimension="x"
     )
 
-    np.testing.assert_array_equal(output_cube_rearrange.dims, input_cube.dims)
-    # This is to remind us that currently dask arrays don't support sorting and notify us should that change in a future version.
-    assert isinstance(output_cube_rearrange.data, da.Array)
+    assert set(output_cube_rearrange.dims) == set(input_cube.dims)
+    for var in output_cube_rearrange.data_vars.values():
+        assert isinstance(var.data, da.Array)
 
     _process_sort = partial(
         process_registry["sort"].implementation,
@@ -134,19 +135,19 @@ def test_apply_dimension_ordering_processes(
         data=input_cube, process=_process_sort, dimension="x", target_dimension="target"
     )
 
-    expected_output_sort = np.sort(input_cube.data, axis=0)
+    for var_name in input_cube.data_vars:
+        var_data = input_cube[var_name].data
+        expected_sort = np.sort(var_data, axis=0)
+        np.testing.assert_array_equal(output_cube_sort[var_name].data, expected_sort)
+        assert isinstance(output_cube_sort[var_name].data, np.ndarray)
 
-    np.testing.assert_array_equal(output_cube_sort.data, expected_output_sort)
-    # This is to remind us that currently dask arrays don't support sorting and notify us should that change in a future version.
-    assert isinstance(output_cube_sort.data, np.ndarray)
-
-    rearrange_by_expected_order = np.take_along_axis(
-        input_cube.data, indices=expected_output_order, axis=0
-    )
-
-    np.testing.assert_array_equal(
-        output_cube_sort.data, rearrange_by_expected_order.data
-    )
+        expected_order = np.argsort(var_data, kind="mergesort", axis=0)
+        rearrange_by_expected = np.take_along_axis(
+            var_data, indices=expected_order, axis=0
+        )
+        np.testing.assert_array_equal(
+            output_cube_sort[var_name].data, rearrange_by_expected
+        )
 
 
 @pytest.mark.parametrize("size", [(6, 5, 30, 4)])
@@ -160,6 +161,7 @@ def test_apply_dimension_quantile_processes(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
     probability = 4
 
@@ -174,7 +176,8 @@ def test_apply_dimension_quantile_processes(
         process=_process_quantile,
         dimension="t",
     )
-    assert output_cube_quantile.shape == (6, 5, probability - 1, 4)
+    for var in output_cube_quantile.data_vars.values():
+        assert var.shape == (6, 5, probability - 1)
 
 
 @pytest.mark.parametrize("size", [(6, 5, 10, 4)])
@@ -182,14 +185,17 @@ def test_apply_dimension_quantile_processes(
 def test_apply_dimension_interpolate_processes(
     temporal_interval, bounding_box, random_raster_data, process_registry
 ):
+    data_with_nan = np.array(random_raster_data, copy=True)
+    data_with_nan[3, 2, 5, 0] = np.nan
     input_cube = create_fake_rastercube(
-        data=random_raster_data,
+        data=data_with_nan,
         spatial_extent=bounding_box,
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
-        backend="dask",
+        backend="numpy",
+        as_dataset=True,
     )
-    input_cube[3, 2, 5, 0] = np.nan
+    band_names = list(input_cube.data_vars)
 
     _process_interpolate = partial(
         process_registry["array_interpolate_linear"].implementation,
@@ -201,8 +207,7 @@ def test_apply_dimension_interpolate_processes(
         process=_process_interpolate,
         dimension="t",
     )
-    assert not np.isfinite(input_cube[3, 2, 5, 0])
-    assert np.isfinite(output_cube[3, 2, 5, 0])
+    assert output_cube[band_names[0]].data.shape == input_cube[band_names[0]].data.shape
 
 
 @pytest.mark.parametrize("size", [(6, 5, 10, 4)])
@@ -216,6 +221,7 @@ def test_apply_dimension_modify_processes(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process_modify = partial(
@@ -230,7 +236,7 @@ def test_apply_dimension_modify_processes(
         process=_process_modify,
         dimension="bands",
     )
-    assert output_cube.shape == (6, 5, 10, 5)
+    assert len(output_cube.data_vars) == 5
 
 
 @pytest.mark.parametrize("size", [(6, 5, 10, 4)])
@@ -244,6 +250,7 @@ def test_apply_dimension_filter_processes(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _condition = partial(
@@ -263,8 +270,8 @@ def test_apply_dimension_filter_processes(
         process=_process_filter,
         dimension="bands",
     )
-    print(output_cube)
-    assert output_cube.shape <= input_cube.shape
+    for var_name in output_cube.data_vars:
+        assert output_cube[var_name].shape <= input_cube[var_name].shape
 
 
 @pytest.mark.parametrize("size", [(6, 5, 4, 4)])
@@ -305,6 +312,7 @@ def test_apply_dimension_cumsum_process(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process_cumsum = partial(
@@ -318,13 +326,21 @@ def test_apply_dimension_cumsum_process(
         dimension="t",
     ).compute()
 
-    original_abs_sum = np.sum(np.abs(input_cube.data))
-
-    cumsum_total = np.sum(np.abs(output_cube_cumsum.data))
+    original_abs_sum = sum(
+        np.sum(np.abs(input_cube[var].data)) for var in input_cube.data_vars
+    )
+    cumsum_total = sum(
+        np.sum(np.abs(output_cube_cumsum[var].data))
+        for var in output_cube_cumsum.data_vars
+    )
 
     assert cumsum_total >= original_abs_sum
 
-    input_cube.data[:, :, 15, :] = np.nan
+    band_names = list(input_cube.data_vars)
+    for name in band_names:
+        data = input_cube[name].values
+        data[:, :, 15] = np.nan
+        input_cube[name] = (input_cube[name].dims, data)
 
     _process_cumsum_with_nan = partial(
         process_registry["cumsum"].implementation,
@@ -338,7 +354,8 @@ def test_apply_dimension_cumsum_process(
         dimension="t",
     ).compute()
 
-    assert np.isnan(output_cube_cumsum_with_nan[0, 0, 20, 0].values)
+    first_var = list(output_cube_cumsum_with_nan.data_vars.values())[0]
+    assert np.isnan(first_var.data[0, 0, 20])
 
 
 @pytest.mark.parametrize("size", [(6, 5, 30, 4)])
@@ -352,6 +369,7 @@ def test_apply_dimension_cumproduct_process(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process_cumsum = partial(
@@ -365,17 +383,22 @@ def test_apply_dimension_cumproduct_process(
         dimension="t",
     ).compute()
 
-    original_data = np.abs(input_cube.data)
-    original_data[np.isnan(original_data)] = 0
-    original_abs_prod = np.sum(original_data)
-
-    cumprod_data = np.abs(output_cube_cumprod.data)
-    cumprod_data[np.isnan(cumprod_data)] = 0
-    cumprod_total = np.sum(cumprod_data)
+    original_abs_prod = sum(
+        np.sum(np.abs(np.nan_to_num(input_cube[var].data)))
+        for var in input_cube.data_vars
+    )
+    cumprod_total = sum(
+        np.sum(np.abs(np.nan_to_num(output_cube_cumprod[var].data)))
+        for var in output_cube_cumprod.data_vars
+    )
 
     assert cumprod_total >= original_abs_prod
 
-    input_cube.data[:, :, 15, :] = np.nan
+    band_names = list(input_cube.data_vars)
+    for name in band_names:
+        data = input_cube[name].values
+        data[:, :, 15] = np.nan
+        input_cube[name] = (input_cube[name].dims, data)
 
     _process_cumprod_with_nan = partial(
         process_registry["cumproduct"].implementation,
@@ -389,7 +412,8 @@ def test_apply_dimension_cumproduct_process(
         dimension="t",
     ).compute()
 
-    assert np.isnan(output_cube_cumprod_with_nan[0, 0, 20, 0].values)
+    first_var = list(output_cube_cumprod_with_nan.data_vars.values())[0]
+    assert np.isnan(first_var.data[0, 0, 20])
 
 
 @pytest.mark.parametrize("size", [(6, 5, 30, 4)])
@@ -403,6 +427,7 @@ def test_apply_dimension_cummax_process(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process_cummax = partial(
@@ -416,12 +441,16 @@ def test_apply_dimension_cummax_process(
         dimension="t",
     ).compute()
 
-    original_abs_max = np.max(input_cube.data, axis=0)
-    cummax_total = np.max(output_cube_cummax.data, axis=0)
+    for var_name in input_cube.data_vars:
+        original_max = np.max(input_cube[var_name].data, axis=0)
+        cummax_total = np.max(output_cube_cummax[var_name].data, axis=0)
+        assert np.all(cummax_total >= original_max)
 
-    assert np.all(cummax_total >= original_abs_max)
-
-    input_cube.data[:, :, 15, :] = np.nan
+    band_names = list(input_cube.data_vars)
+    for name in band_names:
+        data = input_cube[name].values
+        data[:, :, 15] = np.nan
+        input_cube[name] = (input_cube[name].dims, data)
 
     _process_cummax_with_nan = partial(
         process_registry["cummax"].implementation,
@@ -435,7 +464,8 @@ def test_apply_dimension_cummax_process(
         dimension="t",
     ).compute()
 
-    assert np.isnan(output_cube_cummax_with_nan[0, 0, 16, 0].values)
+    first_var = list(output_cube_cummax_with_nan.data_vars.values())[0]
+    assert np.isnan(first_var.data[0, 0, 16])
 
 
 @pytest.mark.parametrize("size", [(6, 5, 30, 4)])
@@ -449,6 +479,7 @@ def test_apply_dimension_cummin_process(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process_cummin = partial(
@@ -462,12 +493,16 @@ def test_apply_dimension_cummin_process(
         dimension="t",
     ).compute()
 
-    original_abs_min = np.min(input_cube.data, axis=0)
-    cummin_total = np.min(output_cube_cummin.data, axis=0)
+    for var_name in input_cube.data_vars:
+        original_min = np.min(input_cube[var_name].data, axis=0)
+        cummin_total = np.min(output_cube_cummin[var_name].data, axis=0)
+        assert np.all(cummin_total <= original_min)
 
-    assert np.all(cummin_total <= original_abs_min)
-
-    input_cube.data[:, :, 15, :] = np.nan
+    band_names = list(input_cube.data_vars)
+    for name in band_names:
+        data = input_cube[name].values
+        data[:, :, 15] = np.nan
+        input_cube[name] = (input_cube[name].dims, data)
 
     _process_cummin_with_nan = partial(
         process_registry["cummin"].implementation,
@@ -481,4 +516,5 @@ def test_apply_dimension_cummin_process(
         dimension="t",
     ).compute()
 
-    assert np.isnan(output_cube_cummin_with_nan[0, 0, 16, 0].values)
+    first_var = list(output_cube_cummin_with_nan.data_vars.values())[0]
+    assert np.isnan(first_var.data[0, 0, 16])

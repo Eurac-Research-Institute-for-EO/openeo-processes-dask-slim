@@ -49,8 +49,32 @@ def apply_dimension(
     data = ensure_raster_cube(data, "apply_dimension")
 
     if dimension == "bands" and isinstance(data, xr.Dataset):
+        band_array = data.to_array(dim="bands")
+        positional_parameters = {"data": 0}
         named_parameters = {"context": context}
-        result = process(data, **named_parameters)
+        if target_dimension is None:
+            target_dimension = dimension
+        keepdims = target_dimension is not None
+        reordered_band_array = band_array.transpose(..., dimension)
+        result = xr.apply_ufunc(
+            process,
+            reordered_band_array,
+            input_core_dims=[[dimension]],
+            output_core_dims=[[dimension]],
+            dask="allowed",
+            kwargs={
+                "positional_parameters": positional_parameters,
+                "named_parameters": named_parameters,
+                "axis": reordered_band_array.get_axis_num(dimension),
+                "keepdims": keepdims,
+                "source_transposed_axis": band_array.get_axis_num(dimension),
+                "context": context,
+            },
+            exclude_dims={dimension},
+            keep_attrs=True,
+        )
+        if isinstance(result, xr.DataArray) and "bands" in result.dims:
+            return result.to_dataset(dim="bands")
         if not isinstance(result, xr.Dataset):
             result = result.to_dataset(name="result")
         if data.odc.crs is not None:
@@ -80,6 +104,18 @@ def apply_dimension(
     # input_core_dimensions to the last axes
     reordered_data = data.transpose(..., dimension)
 
+    # Dataset lacks get_axis_num; compute axis from first variable
+    if isinstance(data, xr.Dataset):
+        sample_var = list(data.data_vars.values())[0]
+        axis = sample_var.get_axis_num(dimension)
+        source_axis = sample_var.get_axis_num(dimension)
+        reordered_sample = list(reordered_data.data_vars.values())[0]
+        reordered_axis = reordered_sample.get_axis_num(dimension)
+    else:
+        axis = data.get_axis_num(dimension)
+        source_axis = axis
+        reordered_axis = reordered_data.get_axis_num(dimension)
+
     result = xr.apply_ufunc(
         process,
         reordered_data,
@@ -89,9 +125,9 @@ def apply_dimension(
         kwargs={
             "positional_parameters": positional_parameters,
             "named_parameters": named_parameters,
-            "axis": reordered_data.get_axis_num(dimension),
+            "axis": reordered_axis,
             "keepdims": keepdims,
-            "source_transposed_axis": data.get_axis_num(dimension),
+            "source_transposed_axis": source_axis,
             "context": context,
         },
         exclude_dims={dimension},

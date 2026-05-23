@@ -23,14 +23,24 @@ def reduce_dimension(
     data = ensure_raster_cube(data, "reduce_dimension")
 
     if dimension == "bands" and isinstance(data, xr.Dataset):
+        band_array = data.to_array(dim="bands")
+        dim_labels = band_array[dimension].values
         positional_parameters = {"data": 0}
-        reduced_data = reducer(
-            data,
+        reduced_data = band_array.reduce(
+            reducer,
+            dim=dimension,
+            keep_attrs=True,
             positional_parameters=positional_parameters,
             context=context,
+            dim_labels=dim_labels,
         )
+        if isinstance(reduced_data, xr.DataArray) and "bands" in reduced_data.dims:
+            return reduced_data.to_dataset(dim="bands")
         if not isinstance(reduced_data, xr.Dataset):
             reduced_data = reduced_data.to_dataset(name="result")
+        reduced_data.attrs["reduced_dimensions_min_values"] = {
+            "bands": data.attrs.get("reduced_dimensions_min_values", {}).get("bands", 0)
+        }
         return reduced_data
 
     if dimension not in data.dims:

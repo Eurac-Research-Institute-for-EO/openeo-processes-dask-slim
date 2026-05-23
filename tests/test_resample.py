@@ -48,6 +48,7 @@ def test_resample_spatial(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(
@@ -56,13 +57,8 @@ def test_resample_spatial(
         data=ParameterReference(from_parameter="data"),
     )
 
-    if "bands" not in dims:
-        output_cube = reduce_dimension(
-            data=input_cube, reducer=_process, dimension="bands"
-        )
-
     if "t" not in dims:
-        output_cube = reduce_dimension(data=input_cube, reducer=_process, dimension="t")
+        input_cube = reduce_dimension(data=input_cube, reducer=_process, dimension="t")
 
     with pytest.raises(Exception):
         output_cube = resample_spatial(

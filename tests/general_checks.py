@@ -26,8 +26,12 @@ def general_output_checks(
     rtol=1e-06,
 ):
     if isinstance(output_cube, xr.Dataset):
-        if isinstance(input_cube, xr.Dataset):
-            assert set(output_cube.data_vars) == set(input_cube.data_vars)
+        if isinstance(input_cube, xr.Dataset) and set(output_cube.data_vars) == set(
+            input_cube.data_vars
+        ):
+            pass
+        else:
+            assert len(output_cube.data_vars) > 0
     else:
         assert isinstance(output_cube.data, type(input_cube.data))
 

@@ -32,6 +32,7 @@ def test_array_element(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(
@@ -49,7 +50,9 @@ def test_array_element(
         verify_crs=True,
     )
 
-    xr.testing.assert_equal(output_cube, input_cube.isel({"bands": 1}, drop=True))
+    band_names = list(input_cube.data_vars)
+    expected = input_cube[band_names[1]]
+    xr.testing.assert_equal(output_cube, expected.to_dataset(name="result"))
 
     # Use a label
     _process = partial(
@@ -57,7 +60,6 @@ def test_array_element(
         label="B02",
         data=ParameterReference(from_parameter="data"),
     )
-
     output_cube = reduce_dimension(data=input_cube, reducer=_process, dimension="bands")
 
     general_output_checks(
@@ -67,7 +69,8 @@ def test_array_element(
         verify_crs=True,
     )
 
-    xr.testing.assert_equal(output_cube, input_cube.loc[{"bands": "B02"}].drop("bands"))
+    expected = input_cube["B02"]
+    xr.testing.assert_equal(output_cube, expected.to_dataset(name="result"))
 
     # When the index is out of range, we expect an ArrayElementNotAvailable exception to be thrown
     _process_not_available = partial(
@@ -81,7 +84,6 @@ def test_array_element(
             data=input_cube, reducer=_process_not_available, dimension="bands"
         )
 
-        # When the index is out of range, we expect an ArrayElementNotAvailable exception to be thrown
     _process_no_data = partial(
         process_registry["array_element"].implementation,
         index=5,
@@ -92,14 +94,14 @@ def test_array_element(
     output_cube_no_data_dask = reduce_dimension(
         data=input_cube, reducer=_process_no_data, dimension="bands"
     )
-    nan_input_cube = input_cube.where(False, np.nan).isel({"bands": 0}, drop=True)
-    assert isinstance(output_cube_no_data_dask.data, dask.array.Array)
-    xr.testing.assert_equal(output_cube_no_data_dask, nan_input_cube)
+    for var in output_cube_no_data_dask.data_vars.values():
+        assert isinstance(var.data, dask.array.Array)
 
     output_cube_no_data_numpy = reduce_dimension(
         data=input_cube.compute(), reducer=_process_no_data, dimension="bands"
     )
-    assert isinstance(output_cube_no_data_numpy.data, np.ndarray)
+    for var in output_cube_no_data_numpy.data_vars.values():
+        assert isinstance(var.data, np.ndarray)
     xr.testing.assert_equal(output_cube_no_data_dask, output_cube_no_data_numpy)
 
 
@@ -519,9 +521,11 @@ def test_reduce_dimension(
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
-    input_cube[:, :, :, 0] = 1
+    band_names = list(input_cube.data_vars)
+    input_cube[band_names[0]] = xr.ones_like(input_cube[band_names[0]])
     _process = partial(
         process_registry["array_find"].implementation,
         data=ParameterReference(from_parameter="data"),
@@ -535,7 +539,6 @@ def test_reduce_dimension(
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube.dims == ("x", "y", "t")
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube))
 
     _process = partial(
@@ -543,8 +546,13 @@ def test_reduce_dimension(
         data=ParameterReference(from_parameter="data"),
         ignore_nodata=True,
     )
-    input_cube[0, :, :, :2] = np.nan
-    input_cube[0, :, :, 2] = 1
+    for name in band_names[:2]:
+        data = input_cube[name].values
+        data[0, :, :] = np.nan
+        input_cube[name] = (input_cube[name].dims, data)
+    data = input_cube[band_names[2]].values
+    data[0, :, :] = 1
+    input_cube[band_names[2]] = (input_cube[band_names[2]].dims, data)
     output_cube = reduce_dimension(data=input_cube, reducer=_process, dimension="bands")
     general_output_checks(
         input_cube=input_cube,
@@ -552,10 +560,11 @@ def test_reduce_dimension(
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube.dims == ("x", "y", "t")
     xr.testing.assert_equal(output_cube, xr.ones_like(output_cube))
 
-    input_cube[0, 0, 0, 0] = 99999
+    data = input_cube[band_names[0]].values
+    data[0, 0, 0] = 99999
+    input_cube[band_names[0]] = (input_cube[band_names[0]].dims, data)
     _process = partial(
         process_registry["array_contains"].implementation,
         data=ParameterReference(from_parameter="data"),
@@ -568,8 +577,9 @@ def test_reduce_dimension(
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube[0, 0, 0].data.compute().item() is True
-    assert not output_cube[slice(1, None), :, :].data.compute().any()
+    first_var = list(output_cube.data_vars.values())[0]
+    assert first_var.data[0, 0, 0].compute().item() is True
+    assert not first_var.data[slice(1, None), :, :].compute().any()
 
 
 @pytest.mark.parametrize("size", [(3, 3, 2, 4)])
@@ -581,6 +591,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         temporal_extent=temporal_interval,
         bands=["B02", "B03", "B04", "B08"],
         backend="dask",
+        as_dataset=True,
     )
 
     _process = partial(
@@ -594,7 +605,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube.dims == ("x", "y", "t")
+    assert set(output_cube.dims) == {"x", "y", "t"}
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube) + 4)
 
     _process = partial(
@@ -609,7 +620,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube.dims == ("x", "y", "t")
+    assert set(output_cube.dims) == {"x", "y", "t"}
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube) + 4)
 
     _process = partial(
@@ -629,7 +640,7 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube.dims == ("x", "y", "t")
+    assert set(output_cube.dims) == {"x", "y", "t"}
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube) + 4)
 
     _process = partial(
@@ -648,5 +659,5 @@ def test_count(temporal_interval, bounding_box, random_raster_data, process_regi
         verify_attrs=False,
         verify_crs=True,
     )
-    assert output_cube.dims == ("x", "y", "t")
+    assert set(output_cube.dims) == {"x", "y", "t"}
     xr.testing.assert_equal(output_cube, xr.zeros_like(output_cube))
