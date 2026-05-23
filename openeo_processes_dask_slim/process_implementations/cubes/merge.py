@@ -26,8 +26,8 @@ def _align_coordinates(
     cube1: RasterCube, cube2: RasterCube
 ) -> tuple[RasterCube, RasterCube]:
     """Align coordinates between two cubes if they're very close numerically."""
-    cube2 = cube2.copy(deep=False)
     shared_dims = set(cube1.dims).intersection(set(cube2.dims))
+    coords_to_align = {}
 
     for dim in shared_dims:
         coords1 = cube1[dim].values
@@ -47,8 +47,10 @@ def _align_coordinates(
         # Check if maximum difference is within tolerance
         max_diff = np.max(np.abs(coords1 - coords2))
         if max_diff < FLOAT_TOLERANCE:
-            # Align cube2's coordinates to cube1's coordinates
-            cube2[dim] = cube1[dim]
+            coords_to_align[dim] = cube1[dim]
+
+    if coords_to_align:
+        cube2 = cube2.assign_coords(coords_to_align)
 
     return cube1, cube2
 
@@ -99,7 +101,24 @@ def merge_cubes(
         for var in only_in2:
             result_vars[var] = cube2[var]
 
-        result = xr.Dataset(result_vars, coords=cube1.coords, attrs=cube1.attrs)
+        if result_vars:
+            non_dim_coords = {c: cube1[c] for c in cube1.coords if c not in cube1.dims}
+            if non_dim_coords:
+                clean_vars = {
+                    k: v.drop_vars([c for c in v.coords if c in non_dim_coords])
+                    for k, v in result_vars.items()
+                }
+            else:
+                clean_vars = result_vars
+            result = xr.merge(
+                list(clean_vars.values()),
+                combine_attrs="drop_conflicts",
+            )
+            result.attrs = cube1.attrs
+            for c_name, c_data in non_dim_coords.items():
+                result.coords[c_name] = c_data
+        else:
+            result = xr.Dataset({}, coords=cube1.coords, attrs=cube1.attrs)
         for v, attrs in var_attrs.items():
             if v in result.data_vars:
                 result[v].attrs = attrs
