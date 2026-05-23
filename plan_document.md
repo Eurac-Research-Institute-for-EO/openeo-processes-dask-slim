@@ -427,11 +427,11 @@ The following phases complete the migration by switching `RasterCube` from `Unio
 ### Status Overview
 
 | Phase | Description | Status |
-|---|---|---|
+|---|---|---|---|
 | A | Change `RasterCube = xr.Dataset` type alias | ✅ Done |
-| B | Enable `ensure_raster_cube` to reject DataArray | ⬜ Blocked |
-| C | Fix downstream call chains | ⬜ Blocked |
-| D | Make Dataset the test default | ⬜ Blocked |
+| B | Enable `ensure_raster_cube` to reject DataArray | ✅ Done |
+| C | Fix downstream call chains | ✅ Done (no-op) |
+| D | Make Dataset the test default | ✅ Done |
 
 ### Phase A — Change the type alias (✅ Done)
 
