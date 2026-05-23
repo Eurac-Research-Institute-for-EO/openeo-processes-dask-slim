@@ -1,3 +1,4 @@
+import dask.array as da
 import numpy as np
 import openeo
 import pytest
@@ -36,3 +37,29 @@ def apply_datacube(cube: xr.DataArray, context: dict) -> xr.DataArray:
     )
 
     xr.testing.assert_equal(output_cube, input_cube + 1)
+
+
+@pytest.mark.parametrize("size", [(6, 5, 4, 4)])
+@pytest.mark.parametrize("dtype", [np.float32])
+def test_run_udf_dataset(temporal_interval, bounding_box, random_raster_data):
+    input_cube = create_fake_rastercube(
+        data=random_raster_data,
+        spatial_extent=bounding_box,
+        temporal_extent=temporal_interval,
+        bands=["B02", "B03", "B04", "B08"],
+        backend="dask",
+        as_dataset=True,
+    )
+
+    udf = """
+import xarray as xr
+def apply_datacube(cube: xr.DataArray, context: dict) -> xr.DataArray:
+    return cube + 1
+"""
+
+    output_cube = run_udf(data=input_cube, udf=udf, runtime="Python")
+
+    assert isinstance(output_cube, xr.Dataset)
+    assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
+    for var in output_cube.data_vars.values():
+        assert isinstance(var.data, da.Array)
