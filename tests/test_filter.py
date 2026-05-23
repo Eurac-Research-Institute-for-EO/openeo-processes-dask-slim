@@ -97,6 +97,23 @@ def test_filter_labels(
     assert len(list(output_cube.data_vars)) == 1
 
 
+def test_filter_labels_virtual_bands(process_registry):
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(2), dims=["x"]),
+            "B03": xr.DataArray(np.ones(2) * 2, dims=["x"]),
+            "B04": xr.DataArray(np.ones(2) * 3, dims=["x"]),
+        }
+    )
+    _process = partial(
+        process_registry["eq"].implementation,
+        y="B04",
+        x=ParameterReference(from_parameter="x"),
+    )
+    result = filter_labels(data=ds, condition=_process, dimension="bands")
+    assert list(result.data_vars) == ["B04"]
+
+
 @pytest.mark.parametrize("size", [(1, 1, 1, 2)])
 @pytest.mark.parametrize("dtype", [np.uint8])
 def test_filter_bands(temporal_interval, bounding_box, random_raster_data):

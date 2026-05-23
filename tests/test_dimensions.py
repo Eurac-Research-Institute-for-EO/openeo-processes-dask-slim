@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import xarray as xr
 
 from openeo_processes_dask_slim.process_implementations.cubes.general import *
 from openeo_processes_dask_slim.process_implementations.exceptions import (
@@ -180,3 +181,70 @@ def test_trim_cube(temporal_interval, bounding_box, random_raster_data):
     all_nan = input_cube * np.nan
     with pytest.raises(ValueError):
         output_cube = trim_cube(all_nan)
+
+
+def test_dimension_labels_virtual_bands():
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(2), dims=["x"]),
+            "B03": xr.DataArray(np.ones(2) * 2, dims=["x"]),
+            "B04": xr.DataArray(np.ones(2) * 3, dims=["x"]),
+        }
+    )
+    labels = dimension_labels(ds, "bands")
+    assert list(labels) == ["B02", "B03", "B04"]
+
+
+def test_dimension_labels_real_dim(tmp_path):
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(4), dims=["t"], coords={"t": [0, 1, 2, 3]}),
+        }
+    )
+    labels = dimension_labels(ds, "t")
+    assert list(labels) == [0, 1, 2, 3]
+
+
+def test_rename_labels_virtual_bands():
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(2), dims=["x"]),
+            "B03": xr.DataArray(np.ones(2) * 2, dims=["x"]),
+        }
+    )
+    renamed = rename_labels(ds, "bands", ["blue", "green"])
+    assert list(renamed.data_vars) == ["blue", "green"]
+    assert renamed["green"].attrs == ds["B03"].attrs
+
+
+def test_rename_labels_virtual_bands_with_source():
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(2), dims=["x"]),
+            "B03": xr.DataArray(np.ones(2) * 2, dims=["x"]),
+            "B04": xr.DataArray(np.ones(2) * 3, dims=["x"]),
+        }
+    )
+    renamed = rename_labels(ds, "bands", ["green"], source=["B03"])
+    assert list(renamed.data_vars) == ["B02", "green", "B04"]
+
+
+def test_rename_labels_virtual_bands_mismatch():
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(2), dims=["x"]),
+            "B03": xr.DataArray(np.ones(2) * 2, dims=["x"]),
+        }
+    )
+    with pytest.raises(Exception, match="LabelMismatch"):
+        rename_labels(ds, "bands", ["only_one"])
+
+
+def test_rename_labels_virtual_bands_nonexistent_source():
+    ds = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.ones(2), dims=["x"]),
+        }
+    )
+    with pytest.raises(Exception, match="LabelNotAvailable"):
+        rename_labels(ds, "bands", ["new"], source=["nonexistent"])

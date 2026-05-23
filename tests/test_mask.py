@@ -23,3 +23,53 @@ def test_mask_dataset(temporal_interval, bounding_box, random_raster_data):
 
     assert set(output_cube.data_vars) == {"B02", "B03", "B04", "B08"}
     assert output_cube["B02"].isnull().any()
+
+
+def test_mask_dataset_single_mask_var():
+    data = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.arange(4).reshape(2, 2), dims=["y", "x"]),
+            "B03": xr.DataArray(np.arange(4).reshape(2, 2) + 10, dims=["y", "x"]),
+        }
+    )
+    mask_data = xr.Dataset(
+        {"mask": xr.DataArray([[False, True], [False, False]], dims=["y", "x"])}
+    )
+    out = mask(data, mask_data, replacement=-1)
+    assert out["B02"][0, 1] == -1
+    assert out["B03"][0, 1] == -1
+    assert out["B02"][0, 0] == 0
+    assert out["B03"][0, 0] == 10
+
+
+def test_mask_dataset_dataarray_mask():
+    data = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.arange(4).reshape(2, 2), dims=["y", "x"]),
+            "B03": xr.DataArray(np.arange(4).reshape(2, 2) + 10, dims=["y", "x"]),
+        }
+    )
+    mask_da = xr.DataArray([[False, True], [False, False]], dims=["y", "x"])
+    out = mask(data, mask_da, replacement=-1)
+    assert out["B02"][0, 1] == -1
+    assert out["B03"][0, 1] == -1
+
+
+def test_mask_dataset_per_variable_mask():
+    data = xr.Dataset(
+        {
+            "B02": xr.DataArray(np.arange(4).reshape(2, 2), dims=["y", "x"]),
+            "B03": xr.DataArray(np.arange(4).reshape(2, 2) + 10, dims=["y", "x"]),
+        }
+    )
+    mask_data = xr.Dataset(
+        {
+            "B02": xr.DataArray([[True, False], [False, False]], dims=["y", "x"]),
+            "B03": xr.DataArray([[False, True], [False, False]], dims=["y", "x"]),
+        }
+    )
+    out = mask(data, mask_data, replacement=-1)
+    assert out["B02"][0, 0] == -1
+    assert out["B02"][0, 1] == 1
+    assert out["B03"][0, 0] == 10
+    assert out["B03"][0, 1] == -1

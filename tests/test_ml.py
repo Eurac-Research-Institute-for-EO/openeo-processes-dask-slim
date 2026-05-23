@@ -146,5 +146,5 @@ def test_predict_random_forest_dask(
 
     result = predict_random_forest(data=ds, model=model)
     assert isinstance(result, xr.Dataset)
-    assert "B02" in result.data_vars
-    assert isinstance(result["B02"].data, dask.array.Array)
+    assert "result" in result.data_vars
+    assert isinstance(result["result"].data, dask.array.Array)
