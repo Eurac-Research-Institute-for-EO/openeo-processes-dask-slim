@@ -107,15 +107,17 @@ def filter_labels(
         labels = list(data.data_vars)
         if not context:
             context = {}
-        positional_parameters = {"x": 0, "value": 0}
-        named_parameters = {"x": labels, "value": labels, "context": context}
-        filter_condition = np.vectorize(condition)
-        filtered_labels = filter_condition(
-            labels,
-            positional_parameters=positional_parameters,
-            named_parameters=named_parameters,
-        )
-        selected = [labels[i] for i in np.argwhere(filtered_labels).flatten()]
+        positional_parameters = {"x": 0}
+        named_parameters = {"x": labels, "context": context}
+        selected = [
+            name
+            for name in labels
+            if condition(
+                name,
+                positional_parameters=positional_parameters,
+                named_parameters=named_parameters,
+            )
+        ]
         return data[selected]
 
     if dimension not in data.dims:
