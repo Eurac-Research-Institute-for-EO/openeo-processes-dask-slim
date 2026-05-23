@@ -49,6 +49,7 @@ def apply_dimension(
     if dimension == "bands" and isinstance(data, xr.Dataset):
         meta = _capture_var_metadata(data)
         band_array = data.to_array(dim="bands")
+        original_band_labels = band_array[dimension].values
         positional_parameters = {"data": 0}
         named_parameters = {"context": context}
         if target_dimension is None:
@@ -72,8 +73,16 @@ def apply_dimension(
             exclude_dims={dimension},
             keep_attrs=True,
         )
-        if isinstance(result, xr.DataArray) and "bands" in result.dims:
-            result = result.to_dataset(dim="bands")
+        if isinstance(result, xr.DataArray) and dimension in result.dims:
+            out_len = len(result[dimension])
+            if out_len <= len(original_band_labels):
+                try:
+                    result = result.assign_coords(
+                        {dimension: original_band_labels[:out_len]}
+                    )
+                except ValueError:
+                    pass
+            result = result.to_dataset(dim=dimension)
         elif not isinstance(result, xr.Dataset):
             result = result.to_dataset(name="result")
         result = _restore_var_metadata(result, meta)
@@ -197,11 +206,26 @@ def apply_kernel(
 
         data_masked = data.fillna(fill_value)
 
-        dtype = (
-            data.dtype
-            if hasattr(data, "dtype")
-            else np.result_type(*[data[var].dtype for var in data.data_vars])
-        )
+        if isinstance(data, xr.Dataset):
+            result_vars = {}
+            for var_name in data.data_vars:
+                var_data = data_masked[var_name]
+                result = xr.apply_ufunc(
+                    convolved,
+                    var_data,
+                    vectorize=True,
+                    dask="parallelized",
+                    input_core_dims=[dims],
+                    output_core_dims=[dims],
+                    output_dtypes=[var_data.dtype],
+                    dask_gufunc_kwargs={"allow_rechunk": True},
+                ).transpose(*data[var_name].dims)
+                result_vars[var_name] = result
+            return xr.Dataset(
+                result_vars, coords=data.coords, attrs=data.attrs
+            ).transpose(*data.dims)
+
+        dtype = data.dtype
 
         return xr.apply_ufunc(
             convolved,

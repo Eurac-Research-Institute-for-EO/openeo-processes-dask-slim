@@ -192,8 +192,10 @@ def resample_cube_temporal(data, target, dimension=None, valid_within=None):
             raise Exception("DimensionNotAvailable")
         target = target.rename({target_time: dimension})
     index = []
-    for d in target[dimension].values:
-        difference = np.abs(d - data[dimension].values)
+    target_coords = target[dimension].values
+    data_coords = data[dimension].values
+    for d in target_coords:
+        difference = np.abs(d - data_coords)
         nearest = np.argwhere(difference == np.min(difference))
         # The rare case of ties is resolved by choosing the earlier timestamps. (index 0)
         if np.shape(nearest) == (2, 1):
