@@ -124,7 +124,9 @@ def test_curve_fitting(temporal_interval, bounding_box, random_raster_data):
     assert result.odc.crs == predictions.odc.crs
 
 
-def test_predict_random_forest_dask(vector_data_cube, dask_client, temporal_interval, bounding_box):
+def test_predict_random_forest_dask(
+    vector_data_cube, dask_client, temporal_interval, bounding_box
+):
     predictors_vars = ["value2"]
     target_var = "value1"
 
