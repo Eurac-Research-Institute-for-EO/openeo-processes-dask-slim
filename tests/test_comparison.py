@@ -14,6 +14,7 @@ from openeo_processes_dask_slim.process_implementations.cubes.apply import apply
 from openeo_processes_dask_slim.process_implementations.cubes.reduce import (
     reduce_dimension,
 )
+from openeo_processes_dask_slim.process_implementations.utils import get_scalar_type
 from tests.general_checks import assert_numpy_equals_dask_numpy, general_output_checks
 from tests.mockdata import create_fake_rastercube
 
@@ -85,6 +86,20 @@ def test_is_nan(value, expected):
     np.testing.assert_array_equal(output, expected)
 
     assert hasattr(is_nan(is_dask), "dask")
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        (1, np.int64),
+        ("test", np.str_),
+        (None, np.object_),
+        (np.array([1, 2]), np.int64),
+        (da.from_array(np.array([1, 2])), np.int64),
+    ],
+)
+def test_get_scalar_type(value, expected):
+    assert get_scalar_type(value) is expected
 
 
 @pytest.mark.parametrize(
@@ -187,7 +202,7 @@ def test_eq_mask():
     data = np.array([[10, 10], [10, 0]])
     data = da.from_array(data)
     m = eq(data, 10)
-    assert (m == data / 10).all()
+    assert (m == data / 10).all().compute()  # add .compute()
 
 
 @pytest.mark.parametrize(
