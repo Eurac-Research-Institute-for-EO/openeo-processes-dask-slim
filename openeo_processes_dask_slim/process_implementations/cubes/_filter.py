@@ -95,6 +95,7 @@ def filter_temporal(
                 "The temporal extent is empty. The second instant in time must always be greater/later than the first instant in time."
             )
 
+        data = data.sortby(applicable_temporal_dimension)
         data = data.where(~np.isnat(data[applicable_temporal_dimension]), drop=True)
         filtered = data.loc[
             {applicable_temporal_dimension: slice(start_time, end_time)}
