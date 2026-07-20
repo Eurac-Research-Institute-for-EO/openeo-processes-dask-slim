@@ -1,6 +1,6 @@
 # Scalability notes
 
-Edge cases and design tradeoffs that affect scalability in `openeo-processes-dask-slim`.
+Edge cases and design tradeoffs that affect scalability in `openeo-processes-dedl-slim`.
 
 ## Modernization baseline
 

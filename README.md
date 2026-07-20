@@ -1,6 +1,6 @@
 # OpenEO Processes DEDL Slim
 
-This repository is a fork of the `dev_remodel` branch of [openeo-processes-dask-slim](https://github.com/Eurac-Research-Institute-for-EO/openeo-processes-dask-slim) from the EURAC fork, adapted specifically for the openEO DEDL backend.
+This repository is a fork of the `dev_remodel` branch of [openeo-processes-dedl-slim](https://gitlab.eumetsat.int/dedl-cube/openeo-processes-dedl-slim) from the EURAC fork, adapted specifically for the openEO DEDL backend.
 
 It provides Python implementations of [OpenEO processes](https://processes.openeo.org/) using Python + [Dask](https://github.com/dask/dask) with the supported rasterCube model as `xr.Dataset`.
 

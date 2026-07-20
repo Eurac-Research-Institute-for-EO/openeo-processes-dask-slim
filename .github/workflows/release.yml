@@ -61,7 +61,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/openeo-processes-dask-slim
+      url: https://pypi.org/project/openeo-processes-dedl-slim
 
     steps:
       - name: Retrieve release distributions
