@@ -1,26 +1,22 @@
-# OpenEO Processes Dask Slim
+# OpenEO Processes DEDL Slim
 
-[![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
-![PyPI - Status](https://img.shields.io/pypi/status/openeo-processes-dask-slim)
-![PyPI](https://img.shields.io/pypi/v/openeo-processes-dask-slim)
-![PyPI - Python Version](https://img.shields.io/pypi/pyversions/openeo-processes-dask-slim)
-[![codecov](https://codecov.io/github/Open-EO/openeo-processes-dask-slim/branch/main/graph/badge.svg?token=RA82MUN9RZ)](https://codecov.io/github/Open-EO/openeo-processes-dask-slim)
+This repository is a fork of the `dev_remodel` branch of [openeo-processes-dask-slim](https://github.com/Eurac-Research-Institute-for-EO/openeo-processes-dask-slim) from the EURAC fork, adapted specifically for the openEO DEDL backend.
 
-`openeo-processes-dask-slim` is a collection of Python implementations of [OpenEO processes](https://processes.openeo.org/) based on the [xarray](https://github.com/pydata/xarray)/[dask](https://github.com/dask/dask) ecosystem. It is intended to be used alongside with [openeo-pg-parser-networkx](https://github.com/Open-EO/openeo-pg-parser-networkx), which handles the parsing and execution of [OpenEO process graphs](https://openeo.org/documentation/1.0/developers/api/reference.html#section/Processes/Process-Graphs). There you'll also find a tutorial on how to register process implementations from an arbitrary source (e.g. this repo) to the registry of available processes.
+It provides Python implementations of [OpenEO processes](https://processes.openeo.org/) using Python + [Dask](https://github.com/dask/dask) with the supported rasterCube model as `xr.Dataset`.
 
 ## Installation
 
 Install this project via pip:
 
 ```bash
-pip install openeo-processes-dask-slim
+pip install openeo-processes-dedl-slim
 ```
 
 Note that by default this only installs the JSON process specs.
 In order to install the actual implementations, add the `implementations` extra:
 
 ```bash
-pip install openeo-processes-dask-slim[implementations]
+pip install openeo-processes-dedl-slim[implementations]
 ```
 
 ### Extra build variants
@@ -30,24 +26,24 @@ A subset of process implementations with heavy or unstable dependencies are hidd
 * **ML processes:**
 
   ```bash
-  pip install openeo-processes-dask-slim[ml]
+  pip install openeo-processes-dedl-slim[ml]
   ```
 * **Experimental processes:**
 
   ```bash
-  pip install openeo-processes-dask-slim[experimental]
+  pip install openeo-processes-dedl-slim[experimental]
   ```
 
 ---
 
 ## Development environment
 
-openeo-processes-dask-slim requires poetry >1.2, see their [docs](https://python-poetry.org/docs/#installation) for installation instructions.
+openeo-processes-dedl-slim requires poetry >1.2, see their [docs](https://python-poetry.org/docs/#installation) for installation instructions.
 
 Clone the repository with `--recurse-submodules` to also fetch the process specs:
 
 ```bash
-git clone --recurse-submodules git@github.com:Open-EO/openeo-processes-dask-slim.git
+git clone --recurse-submodules git@gitlab.eumetsat.int:dedl-cube/openeo-processes-dedl-slim.git
 ```
 
 To setup the python venv and install this project into it run:
