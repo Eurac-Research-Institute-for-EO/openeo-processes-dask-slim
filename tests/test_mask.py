@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from openeo_processes_dask_slim.process_implementations.cubes.mask import mask
+from openeo_processes_dedl_slim.process_implementations.cubes.mask import mask
 from tests.mockdata import create_fake_rastercube
 
 

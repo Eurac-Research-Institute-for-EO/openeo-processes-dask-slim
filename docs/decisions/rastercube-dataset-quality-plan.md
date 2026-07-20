@@ -6,7 +6,7 @@ The goal is to make `xr.Dataset` the real raster process contract, not only the 
 
 ## Current Baseline
 
-- `RasterCube = xr.Dataset` in `openeo_processes_dask_slim/process_implementations/data_model.py`.
+- `RasterCube = xr.Dataset` in `openeo_processes_dedl_slim/process_implementations/data_model.py`.
 - Test fixtures default to Dataset through `create_fake_rastercube(..., as_dataset=True)`.
 - Many raster process implementations already support Dataset inputs.
 - Some operations still use bounded `Dataset -> DataArray -> Dataset` bridges for virtual band logic.
@@ -31,7 +31,7 @@ Create a clear inventory of process implementation status and make accidental Ra
 ### Tasks
 
 1. Add a markdown inventory table, for example `docs/decisions/rastercube-process-status.md`.
-2. For every process in `openeo_processes_dask_slim/process_implementations/cubes`, classify it as:
+2. For every process in `openeo_processes_dedl_slim/process_implementations/cubes`, classify it as:
    - `dataset-native`
    - `bounded-bridge`
    - `legacy-fallback`
@@ -111,7 +111,7 @@ Make all virtual-band bridges explicit, reusable, and tested.
 ### Tasks
 
 1. Create a dedicated module, for example:
-   - `openeo_processes_dask_slim/process_implementations/cubes/dataset_bridge.py`
+   - `openeo_processes_dedl_slim/process_implementations/cubes/dataset_bridge.py`
 2. Move bridge helpers into that module:
    - `_capture_var_metadata`
    - `_restore_var_metadata`

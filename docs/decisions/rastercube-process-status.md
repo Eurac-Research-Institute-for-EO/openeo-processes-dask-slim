@@ -1,7 +1,7 @@
 # RasterCube Migration Process Inventory
 
 This inventory classifies every process in
-`openeo_processes_dask_slim/process_implementations/cubes` for the Dataset
+`openeo_processes_dedl_slim/process_implementations/cubes` for the Dataset
 migration. See `rastercube-dataset-quality-plan.md` for the full plan.
 
 Status categories:

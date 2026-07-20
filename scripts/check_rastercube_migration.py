@@ -17,44 +17,44 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 RASTER_DIR = (
-    PROJECT_ROOT / "openeo_processes_dask_slim" / "process_implementations" / "cubes"
+    PROJECT_ROOT / "openeo_processes_dedl_slim" / "process_implementations" / "cubes"
 )
 DATA_MODEL = (
     PROJECT_ROOT
-    / "openeo_processes_dask_slim"
+    / "openeo_processes_dedl_slim"
     / "process_implementations"
     / "data_model.py"
 )
 
 ALLOWLIST = [
     # _xr_interop.py: registers the openeo accessor on both DataArray and Dataset
-    "openeo_processes_dask_slim/process_implementations/cubes/_xr_interop.py:23:register_dataarray_accessor",
+    "openeo_processes_dedl_slim/process_implementations/cubes/_xr_interop.py:23:register_dataarray_accessor",
     # geometries.py: VectorCube functions, not RasterCube
-    "openeo_processes_dask_slim/process_implementations/cubes/geometries.py:114:xr.DataArray",
-    "openeo_processes_dask_slim/process_implementations/cubes/geometries.py:126:isinstance(..., xr.DataArray)",
-    "openeo_processes_dask_slim/process_implementations/cubes/geometries.py:157:isinstance(..., xr.DataArray)",
+    "openeo_processes_dedl_slim/process_implementations/cubes/geometries.py:114:xr.DataArray",
+    "openeo_processes_dedl_slim/process_implementations/cubes/geometries.py:126:isinstance(..., xr.DataArray)",
+    "openeo_processes_dedl_slim/process_implementations/cubes/geometries.py:157:isinstance(..., xr.DataArray)",
     # apply.py: checks if apply_ufunc returned DataArray (bounded bridge output)
-    "openeo_processes_dask_slim/process_implementations/cubes/apply.py:82:isinstance(..., xr.DataArray)",
+    "openeo_processes_dedl_slim/process_implementations/cubes/apply.py:82:isinstance(..., xr.DataArray)",
     # reduce.py: checks if reduce returned DataArray (bounded bridge output)
-    "openeo_processes_dask_slim/process_implementations/cubes/reduce.py:41:isinstance(..., xr.DataArray)",
+    "openeo_processes_dedl_slim/process_implementations/cubes/reduce.py:41:isinstance(..., xr.DataArray)",
     # dataset_bridge.py: the centralized bridge module itself
-    "openeo_processes_dask_slim/process_implementations/cubes/dataset_bridge.py:47:to_array(",
+    "openeo_processes_dedl_slim/process_implementations/cubes/dataset_bridge.py:47:to_array(",
     # general.py: to_array for NaN mask merge (not a band bridge)
-    "openeo_processes_dask_slim/process_implementations/cubes/general.py:58:to_array(",
+    "openeo_processes_dedl_slim/process_implementations/cubes/general.py:58:to_array(",
     # merge.py: to_array in DataArray path for band reordering after combine_by_coords
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:223:to_array(",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:223:to_array(",
     # merge.py: .data access in DataArray merge path (not RasterCube input)
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:149:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:150:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:151:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:179:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:180:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:271:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:272:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:338:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:339:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:341:.data access",
-    "openeo_processes_dask_slim/process_implementations/cubes/merge.py:342:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:149:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:150:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:151:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:179:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:180:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:271:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:272:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:338:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:339:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:341:.data access",
+    "openeo_processes_dedl_slim/process_implementations/cubes/merge.py:342:.data access",
 ]
 
 findings = []

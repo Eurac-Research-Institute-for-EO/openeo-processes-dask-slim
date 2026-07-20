@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from openeo_processes_dask_slim.process_implementations.cubes.indices import ndvi
-from openeo_processes_dask_slim.process_implementations.exceptions import (
+from openeo_processes_dedl_slim.process_implementations.cubes.indices import ndvi
+from openeo_processes_dedl_slim.process_implementations.exceptions import (
     BandExists,
     NirBandAmbiguous,
     RedBandAmbiguous,

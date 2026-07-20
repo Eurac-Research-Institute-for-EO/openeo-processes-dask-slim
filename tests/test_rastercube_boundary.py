@@ -2,18 +2,18 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from openeo_processes_dask_slim.process_implementations.cubes._filter import (
+from openeo_processes_dedl_slim.process_implementations.cubes._filter import (
     filter_bands,
     filter_bbox,
     filter_labels,
     filter_temporal,
 )
-from openeo_processes_dask_slim.process_implementations.cubes.apply import (
+from openeo_processes_dedl_slim.process_implementations.cubes.apply import (
     apply,
     apply_dimension,
     apply_kernel,
 )
-from openeo_processes_dask_slim.process_implementations.cubes.general import (
+from openeo_processes_dedl_slim.process_implementations.cubes.general import (
     add_dimension,
     dimension_labels,
     drop_dimension,
@@ -21,10 +21,10 @@ from openeo_processes_dask_slim.process_implementations.cubes.general import (
     rename_labels,
     trim_cube,
 )
-from openeo_processes_dask_slim.process_implementations.cubes.indices import ndvi
-from openeo_processes_dask_slim.process_implementations.cubes.mask import mask
-from openeo_processes_dask_slim.process_implementations.cubes.merge import merge_cubes
-from openeo_processes_dask_slim.process_implementations.cubes.reduce import (
+from openeo_processes_dedl_slim.process_implementations.cubes.indices import ndvi
+from openeo_processes_dedl_slim.process_implementations.cubes.mask import mask
+from openeo_processes_dedl_slim.process_implementations.cubes.merge import merge_cubes
+from openeo_processes_dedl_slim.process_implementations.cubes.reduce import (
     reduce_dimension,
     reduce_spatial,
 )

@@ -6,7 +6,7 @@ import pytest
 import xarray as xr
 from openeo_pg_parser_networkx.pg_schema import ParameterReference
 
-from openeo_processes_dask_slim.process_implementations.cubes.reduce import (
+from openeo_processes_dedl_slim.process_implementations.cubes.reduce import (
     reduce_dimension,
     reduce_spatial,
 )
@@ -21,11 +21,11 @@ def test_reduce_rqa(
 ):
     import os
 
-    from openeo_processes_dask_slim.process_implementations.arrays import array_apply
-    from openeo_processes_dask_slim.process_implementations.cubes.apply import (
+    from openeo_processes_dedl_slim.process_implementations.arrays import array_apply
+    from openeo_processes_dedl_slim.process_implementations.cubes.apply import (
         apply_dimension,
     )
-    from openeo_processes_dask_slim.process_implementations.experimental import (
+    from openeo_processes_dedl_slim.process_implementations.experimental import (
         rqadeforestation,
     )
 

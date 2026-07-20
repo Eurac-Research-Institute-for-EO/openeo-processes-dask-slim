@@ -21,7 +21,7 @@ classifiers = [
 ]
 
 packages = [
-    { include = "openeo_processes_dask_slim" }
+    { include = "openeo_processes_dedl_slim" }
 ]
 
 [tool.poetry.dependencies]
