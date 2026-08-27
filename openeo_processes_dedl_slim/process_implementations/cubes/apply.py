@@ -115,10 +115,12 @@ def apply_dimension(
             f"Provided dimension ({dimension}) not found in data.dims: {data.dims}"
         )
 
-    keepdims = False
-    is_new_dim_added = target_dimension is not None
-    if is_new_dim_added:
-        keepdims = True
+    # `apply_dimension` keeps the dimension (unlike `reduce_dimension` which
+    # drops it). The process is applied along `dimension` and the computed
+    # values replace the source/target dimension's values, so the reducer-style
+    # callbacks must keep the axis (`keepdims=True`) for `apply_ufunc`'s
+    # `output_core_dims=[[dimension]]` contract to hold.
+    keepdims = True
 
     if target_dimension is None:
         target_dimension = dimension

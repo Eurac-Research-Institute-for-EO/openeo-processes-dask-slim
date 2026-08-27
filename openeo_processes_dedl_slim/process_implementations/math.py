@@ -372,15 +372,21 @@ def quantiles(
     if data.size == 0:
         return np.array([np.nan] * len(probabilities))
 
-    if ignore_nodata:
-        result = np.nanquantile(
-            data, q=probabilities, method="linear", axis=axis, keepdims=keepdims
+    # When reducing along a specific axis (as ``apply_dimension`` does), the
+    # quantile axis replaces the reduced dimension, so `keepdims` is not
+    # propagated: `np.nanquantile` would keep the reduced axis as a trailing
+    # singleton (e.g. (n, 1, q)) which `apply_ufunc` cannot map back onto the
+    # dimension.
+    reduced = np.nanquantile if ignore_nodata else np.quantile
+    if axis is not None:
+        result = reduced(
+            data, q=probabilities, method="linear", axis=axis, keepdims=False
         )
     else:
-        result = np.quantile(
+        result = reduced(
             data, q=probabilities, method="linear", axis=axis, keepdims=keepdims
         )
-    if axis:
+    if axis is not None and axis is not False:
         result = np.moveaxis(result, 0, axis)
 
     return result

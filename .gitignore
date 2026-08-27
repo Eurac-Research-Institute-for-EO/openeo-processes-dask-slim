@@ -170,3 +170,6 @@ poetry.lock
 # Local tracking
 dev_remodel_review.md
 AGENTS.md
+
+# Live-test output artifacts
+live_tests/l1_healpix_results.json
