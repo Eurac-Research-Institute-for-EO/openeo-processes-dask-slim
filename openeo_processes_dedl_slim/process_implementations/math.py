@@ -321,7 +321,13 @@ def power(base, p):
 def extrema(data, ignore_nodata=True, axis=None, keepdims=False):
     if isinstance(data, list):
         data = np.array(data)
-    # TODO: Could be sped up by only iterating over array once
+    # When reducing along a specific axis (as ``apply_dimension`` does), the
+    # two extrema values (min, max) replace the reduced dimension, so the
+    # `keepdims` singleton is not propagated (same contract as `quantiles`).
+    if axis is not None:
+        minimum = _min(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=False)
+        maximum = _max(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=False)
+        return np.moveaxis(np.stack([minimum, maximum], axis=0), 0, axis)
     minimum = _min(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=keepdims)
     maximum = _max(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=keepdims)
     array = dask.delayed(np.array)([minimum, maximum])
