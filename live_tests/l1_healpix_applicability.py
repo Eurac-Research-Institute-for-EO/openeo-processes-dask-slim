@@ -33,12 +33,11 @@ from pathlib import Path
 import openeo
 from dotenv import load_dotenv
 from openeo_pg_parser_networkx import OpenEOProcessGraph, Process, ProcessRegistry
+
 from openeo_processes_dedl_slim.process_implementations.core import process
 
 _DEFAULT_ENV_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "openeo-processes-dedl-cube-load"
-    / ".env"
+    Path(__file__).resolve().parents[2] / "openeo-processes-dedl-cube-load" / ".env"
 )
 _ENV_PATH = Path(os.environ.get("DEDL_ENV_PATH", _DEFAULT_ENV_PATH))
 load_dotenv(_ENV_PATH)
@@ -69,7 +68,9 @@ def load_cube():
         spatial_extent=BBOX_AREA,
         temporal_extent=TEMPORAL,
     )
-    print(f"loaded {CUBE_COLLECTION}: {dict(cube.sizes)} in {time.perf_counter() - t0:.1f}s")
+    print(
+        f"loaded {CUBE_COLLECTION}: {dict(cube.sizes)} in {time.perf_counter() - t0:.1f}s"
+    )
     return cube
 
 
@@ -78,7 +79,9 @@ def build_registry(loaded_cube):
     impls = [
         func
         for _, func in inspect.getmembers(
-            importlib.import_module("openeo_processes_dedl_slim.process_implementations"),
+            importlib.import_module(
+                "openeo_processes_dedl_slim.process_implementations"
+            ),
             inspect.isfunction,
         )
     ]
@@ -93,7 +96,9 @@ def build_registry(loaded_cube):
     reg["e"] = Process(spec=getattr(specs, "e", None), implementation=_e)
 
     # load_stac returns the pre-loaded cube (avoids re-loading S3 per process)
-    reg["load_stac"] = Process(spec=getattr(specs, "load_stac", None), implementation=lambda **kw: loaded_cube)
+    reg["load_stac"] = Process(
+        spec=getattr(specs, "load_stac", None), implementation=lambda **kw: loaded_cube
+    )
     return reg
 
 
@@ -207,19 +212,67 @@ def run_one(reg, graph, process_id):
 
 def main():
     targets = sys.argv[1:] or None
-    conn = openeo.connect("https://openeo-staging.datalakecube.eumetsat.data.destination-earth.eu/openeo/1.1.0/")
+    conn = openeo.connect(
+        "https://openeo-staging.datalakecube.eumetsat.data.destination-earth.eu/openeo/1.1.0/"
+    )
 
     cube = load_cube()
     reg = build_registry(cube)
 
     processes = [
-        "absolute", "add", "and", "apply", "apply_dimension", "arccos", "arcsin",
-        "arctan", "array_concat", "array_create", "array_element", "between", "ceil",
-        "clip", "constant", "cos", "divide", "e", "eq", "exp", "first", "floor", "gt",
-        "gte", "int", "last", "ln", "log", "lt", "lte", "max", "mean", "median", "min",
-        "mod", "multiply", "neq", "not", "or", "pi", "power", "product", "quantiles",
-        "reduce_dimension", "round", "sd", "sgn", "sin", "sqrt",
-        "subtract", "sum", "tan", "variance",
+        "absolute",
+        "add",
+        "and",
+        "apply",
+        "apply_dimension",
+        "arccos",
+        "arcsin",
+        "arctan",
+        "array_concat",
+        "array_create",
+        "array_element",
+        "between",
+        "ceil",
+        "clip",
+        "constant",
+        "cos",
+        "divide",
+        "e",
+        "eq",
+        "exp",
+        "first",
+        "floor",
+        "gt",
+        "gte",
+        "int",
+        "last",
+        "ln",
+        "log",
+        "lt",
+        "lte",
+        "max",
+        "mean",
+        "median",
+        "min",
+        "mod",
+        "multiply",
+        "neq",
+        "not",
+        "or",
+        "pi",
+        "power",
+        "product",
+        "quantiles",
+        "reduce_dimension",
+        "round",
+        "sd",
+        "sgn",
+        "sin",
+        "sqrt",
+        "subtract",
+        "sum",
+        "tan",
+        "variance",
     ]
     if targets:
         processes = [p for p in processes if p in targets]
@@ -234,11 +287,13 @@ def main():
             results.append({"process": pid, "status": "ok", "time_s": round(dur, 2)})
             print(f"  OK ({dur:.2f}s)")
         except Exception as exc:
-            results.append({
-                "process": pid,
-                "status": "error",
-                "error": f"{type(exc).__name__}: {str(exc)[:200]}",
-            })
+            results.append(
+                {
+                    "process": pid,
+                    "status": "error",
+                    "error": f"{type(exc).__name__}: {str(exc)[:200]}",
+                }
+            )
             print(f"  ERROR: {type(exc).__name__}: {str(exc)[:200]}")
         print()
 
