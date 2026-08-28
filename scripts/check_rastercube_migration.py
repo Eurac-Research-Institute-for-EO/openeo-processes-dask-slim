@@ -34,7 +34,7 @@ ALLOWLIST = [
     "openeo_processes_dedl_slim/process_implementations/cubes/geometries.py:126:isinstance(..., xr.DataArray)",
     "openeo_processes_dedl_slim/process_implementations/cubes/geometries.py:157:isinstance(..., xr.DataArray)",
     # apply.py: checks if apply_ufunc returned DataArray (bounded bridge output)
-    "openeo_processes_dedl_slim/process_implementations/cubes/apply.py:82:isinstance(..., xr.DataArray)",
+    "openeo_processes_dedl_slim/process_implementations/cubes/apply.py:167:isinstance(..., xr.DataArray)",
     # reduce.py: checks if reduce returned DataArray (bounded bridge output)
     "openeo_processes_dedl_slim/process_implementations/cubes/reduce.py:41:isinstance(..., xr.DataArray)",
     # dataset_bridge.py: the centralized bridge module itself
