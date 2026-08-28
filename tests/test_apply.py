@@ -184,6 +184,36 @@ def test_apply_dimension_quantile_processes(
         assert var.shape == (6, 5, probability - 1)
 
 
+@pytest.mark.parametrize("backend", ["numpy", "dask"])
+def test_apply_dimension_array_create_broadcasts_over_healpix_axis(
+    backend, process_registry
+):
+    payload = np.arange(20, dtype=np.float32).reshape(4, 5)
+    if backend == "dask":
+        payload = da.from_array(payload, chunks=(2, 5))
+    input_cube = xr.Dataset(
+        {"ir_108": (("healpix_index", "t"), payload)},
+        coords={"healpix_index": [10, 11, 12, 13], "t": np.arange(5)},
+    )
+
+    _process = partial(
+        process_registry["array_create"].implementation,
+        data=[1, 2, 3],
+    )
+
+    result = apply_dimension(data=input_cube, process=_process, dimension="t")
+
+    assert dict(result.sizes) == {"healpix_index": 4, "t": 3}
+    np.testing.assert_array_equal(result["t"].values, np.arange(3))
+    expected = np.tile(np.array([1, 2, 3]), (4, 1))
+    actual = (
+        result["ir_108"].compute().values
+        if backend == "dask"
+        else result["ir_108"].values
+    )
+    np.testing.assert_array_equal(actual, expected)
+
+
 @pytest.mark.parametrize("size", [(6, 5, 10, 4)])
 @pytest.mark.parametrize("dtype", [np.float32])
 def test_apply_dimension_interpolate_processes(
@@ -358,7 +388,7 @@ def test_apply_dimension_cumsum_process(
         dimension="t",
     ).compute()
 
-    first_var = list(output_cube_cumsum_with_nan.data_vars.values())[0]
+    first_var = next(iter(output_cube_cumsum_with_nan.data_vars.values()))
     assert np.isnan(first_var.data[0, 0, 20])
 
 
@@ -416,7 +446,7 @@ def test_apply_dimension_cumproduct_process(
         dimension="t",
     ).compute()
 
-    first_var = list(output_cube_cumprod_with_nan.data_vars.values())[0]
+    first_var = next(iter(output_cube_cumprod_with_nan.data_vars.values()))
     assert np.isnan(first_var.data[0, 0, 20])
 
 
@@ -468,7 +498,7 @@ def test_apply_dimension_cummax_process(
         dimension="t",
     ).compute()
 
-    first_var = list(output_cube_cummax_with_nan.data_vars.values())[0]
+    first_var = next(iter(output_cube_cummax_with_nan.data_vars.values()))
     assert np.isnan(first_var.data[0, 0, 16])
 
 
@@ -520,7 +550,7 @@ def test_apply_dimension_cummin_process(
         dimension="t",
     ).compute()
 
-    first_var = list(output_cube_cummin_with_nan.data_vars.values())[0]
+    first_var = next(iter(output_cube_cummin_with_nan.data_vars.values()))
     assert np.isnan(first_var.data[0, 0, 16])
 
 

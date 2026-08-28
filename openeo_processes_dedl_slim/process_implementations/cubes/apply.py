@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
 import numpy as np
 import odc.geo.xr
@@ -23,9 +23,91 @@ from openeo_processes_dedl_slim.process_implementations.exceptions import (
 __all__ = ["apply", "apply_dimension", "apply_kernel"]
 
 
-def apply(
-    data: RasterCube, process: Callable, context: Optional[dict] = None
-) -> RasterCube:
+def _is_apply_ufunc_dimension_mismatch(exc: ValueError) -> bool:
+    return "applied function returned data with an unexpected number of dimensions" in str(
+        exc
+    )
+
+
+def _first_data_array(data: xr.Dataset | xr.DataArray) -> xr.DataArray:
+    if isinstance(data, xr.Dataset):
+        return next(iter(data.data_vars.values()))
+    return data
+
+
+def _sample_core_vector(data: xr.Dataset | xr.DataArray, dimension: str):
+    sample = _first_data_array(data)
+    return np.zeros(sample.sizes[dimension], dtype=sample.dtype)
+
+
+def _ensure_apply_dimension_array(result):
+    result = np.asarray(result)
+    if result.ndim == 0:
+        result = result.reshape((1,))
+    if result.ndim != 1:
+        raise ValueError(
+            "apply_dimension callback must return a one-dimensional array when "
+            "called for a single dimension slice."
+        )
+    return result
+
+
+def _apply_dimension_process(process, values, context, axis):
+    return process(
+        values,
+        positional_parameters={"data": 0},
+        named_parameters={"context": context},
+        axis=axis,
+        keepdims=True,
+        source_transposed_axis=axis,
+        context=context,
+    )
+
+
+def _apply_dimension_vectorized(
+    data: xr.Dataset | xr.DataArray,
+    process: Callable,
+    dimension: str,
+    context: dict,
+) -> xr.Dataset | xr.DataArray:
+    sample_result = _ensure_apply_dimension_array(
+        _apply_dimension_process(
+            process=process,
+            values=_sample_core_vector(data, dimension),
+            context=context,
+            axis=0,
+        )
+    )
+
+    def vectorized_process(values, **kwargs):
+        return _ensure_apply_dimension_array(process(values, **kwargs))
+
+    return xr.apply_ufunc(
+        vectorized_process,
+        data,
+        input_core_dims=[[dimension]],
+        output_core_dims=[[dimension]],
+        dask="parallelized",
+        vectorize=True,
+        kwargs={
+            "positional_parameters": {"data": 0},
+            "named_parameters": {"context": context},
+            "axis": 0,
+            "keepdims": True,
+            "source_transposed_axis": 0,
+            "context": context,
+        },
+        exclude_dims={dimension},
+        output_dtypes=[sample_result.dtype],
+        dask_gufunc_kwargs={
+            "allow_rechunk": True,
+            "output_sizes": {dimension: sample_result.shape[0]},
+        },
+        keep_attrs=True,
+    )
+
+
+def apply(data: RasterCube, process: Callable, context: dict | None = None) -> RasterCube:
     ensure_raster_cube(data, "apply")
     positional_parameters = {"x": 0}
     named_parameters = {"context": context}
@@ -46,8 +128,8 @@ def apply_dimension(
     data: RasterCube,
     process: Callable,
     dimension: str,
-    target_dimension: Optional[str] = None,
-    context: Optional[dict] = None,
+    target_dimension: str | None = None,
+    context: dict | None = None,
 ) -> RasterCube:
     ensure_raster_cube(data, "apply_dimension")
     if context is None:
@@ -134,33 +216,43 @@ def apply_dimension(
 
     # Dataset lacks get_axis_num; compute axis from first variable
     if isinstance(data, xr.Dataset):
-        sample_var = list(data.data_vars.values())[0]
+        sample_var = _first_data_array(data)
         axis = sample_var.get_axis_num(dimension)
         source_axis = sample_var.get_axis_num(dimension)
-        reordered_sample = list(reordered_data.data_vars.values())[0]
+        reordered_sample = _first_data_array(reordered_data)
         reordered_axis = reordered_sample.get_axis_num(dimension)
     else:
         axis = data.get_axis_num(dimension)
         source_axis = axis
         reordered_axis = reordered_data.get_axis_num(dimension)
 
-    result = xr.apply_ufunc(
-        process,
-        reordered_data,
-        input_core_dims=[[dimension]],
-        output_core_dims=[[dimension]],
-        dask="allowed",
-        kwargs={
-            "positional_parameters": positional_parameters,
-            "named_parameters": named_parameters,
-            "axis": reordered_axis,
-            "keepdims": keepdims,
-            "source_transposed_axis": source_axis,
-            "context": context,
-        },
-        exclude_dims={dimension},
-        keep_attrs=True,
-    )
+    try:
+        result = xr.apply_ufunc(
+            process,
+            reordered_data,
+            input_core_dims=[[dimension]],
+            output_core_dims=[[dimension]],
+            dask="allowed",
+            kwargs={
+                "positional_parameters": positional_parameters,
+                "named_parameters": named_parameters,
+                "axis": reordered_axis,
+                "keepdims": keepdims,
+                "source_transposed_axis": source_axis,
+                "context": context,
+            },
+            exclude_dims={dimension},
+            keep_attrs=True,
+        )
+    except ValueError as exc:
+        if not _is_apply_ufunc_dimension_mismatch(exc):
+            raise
+        result = _apply_dimension_vectorized(
+            data=reordered_data,
+            process=process,
+            dimension=dimension,
+            context=context,
+        )
 
     reordered_result = result.transpose(*data.dims, ...)
 
@@ -187,7 +279,7 @@ def apply_dimension(
             reordered_result = reordered_result.rename({dimension: target_dimension})
             reordered_result[dimension] = np.arange(result_len)
         else:
-            raise Exception(
+            raise ValueError(
                 f"Cannot rename dimension {dimension} to {target_dimension} as {target_dimension} already exists in dataset and contains more than one label: {reordered_result[target_dimension]}. See process definition. "
             )
     else:
@@ -207,9 +299,9 @@ def apply_dimension(
 def apply_kernel(
     data: RasterCube,
     kernel: np.ndarray,
-    factor: Optional[float] = 1,
-    border: Union[float, str, None] = 0,
-    replace_invalid: Optional[float] = 0,
+    factor: float | None = 1,
+    border: float | str | None = 0,
+    replace_invalid: float | None = 0,
 ) -> RasterCube:
     ensure_raster_cube(data, "apply_kernel")
     kernel = np.asarray(kernel)
@@ -250,7 +342,7 @@ def apply_kernel(
         "reflect_pixel": "mirror",
         "wrap": "wrap",
     }
-    if isinstance(border, int) or isinstance(border, float):
+    if isinstance(border, (int, float)):
         mode = "constant"
         cval = border
     else:

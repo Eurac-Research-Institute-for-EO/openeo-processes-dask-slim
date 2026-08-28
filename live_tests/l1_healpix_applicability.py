@@ -1,9 +1,9 @@
-"""L1 process applicability against the real MSG SEVIRI HEALPix datacube.
+"""L1 process applicability against the real DEDL HEALPix datacubes.
 
-Loads the msg-hrseviri-healpix-datacube once through dedl `load_stac` (real
-S3/icechunk data), then runs every L1(ish) process through the same
-ProcessRegistry path the executor uses, using semantically correct process
-graphs (built with the openEO client).
+Loads a HEALPix datacube once through dedl `load_stac` (real S3/icechunk data),
+then runs every L1(ish) process through the same ProcessRegistry path the
+executor uses, using semantically correct process graphs (built with the
+openEO client).
 
 The `load_stac` node is registered as a function that returns the pre-loaded
 cube, so each process graph exercises full callback wiring on the real HEALPix
@@ -19,18 +19,18 @@ Prerequisites (live test - S3/icechunk credentials and the
 Usage::
 
     DEDL_ENV_PATH=/path/to/openeo-processes-dedl-cube-load/.env \\
-        python live_tests/l1_healpix_applicability.py [PROCESS ...]
+        python live_tests/l1_healpix_applicability.py [--datacube MSG] [--region small] [PROCESS ...]
 """
+import argparse
 import importlib
 import inspect
 import json
 import os
-import sys
 import time
-import traceback
 from pathlib import Path
 
 import openeo
+from _datacubes import DATACUBES, REGIONS
 from dotenv import load_dotenv
 from openeo_pg_parser_networkx import OpenEOProcessGraph, Process, ProcessRegistry
 
@@ -42,34 +42,24 @@ _DEFAULT_ENV_PATH = (
 _ENV_PATH = Path(os.environ.get("DEDL_ENV_PATH", _DEFAULT_ENV_PATH))
 load_dotenv(_ENV_PATH)
 
-RESULTS_OUT = Path(
-    os.environ.get("L1_RESULTS_OUT", Path(__file__).parent / "l1_healpix_results.json")
-)
-
-STAC_API_URL = "https://stac.datalakecube.eumetsat.data.destination-earth.eu"
-CUBE_COLLECTION = "msg-hrseviri-healpix-datacube"
-STAC_COLLECTION_URL = f"{STAC_API_URL}/collections/{CUBE_COLLECTION}"
-BANDS = ["ir_10.8", "vis_0.6"]
-BBOX_AREA = {"west": 7, "east": 8, "south": 49, "north": 50, "crs": "EPSG:4326"}
-TEMPORAL = ["2023-07-21T10:30:00Z", "2023-07-21T16:30:00Z"]
 DIMS = {"band": "healpix_index", "temporal": "t"}
 PROBABILITIES = [0.25, 0.5, 0.75]
 
-REALMS = {"dedl": "https://identity.data.destination-earth.eu/auth/realms/dedl"}
 
-
-def load_cube():
+def load_cube(datacube: str, region: str):
     from openeo_processes_dedl_cube_load import load_stac
 
+    cfg = DATACUBES[datacube]
+    temporal = cfg["global_temporal"] if region == "global" else cfg["temporal"]
     t0 = time.perf_counter()
     cube = load_stac(
-        url=STAC_COLLECTION_URL,
-        bands=BANDS,
-        spatial_extent=BBOX_AREA,
-        temporal_extent=TEMPORAL,
+        url=cfg["url"],
+        bands=[cfg["band"]],
+        spatial_extent=REGIONS[region],
+        temporal_extent=temporal,
     )
     print(
-        f"loaded {CUBE_COLLECTION}: {dict(cube.sizes)} in {time.perf_counter() - t0:.1f}s"
+        f"loaded {datacube} ({region}): {dict(cube.sizes)} in {time.perf_counter() - t0:.1f}s"
     )
     return cube
 
@@ -102,13 +92,15 @@ def build_registry(loaded_cube):
     return reg
 
 
-def make_graph(conn, process_id):
-    """Build a semantically correct openEO graph for `process_id` against the MSG cube."""
+def make_graph(conn, process_id, datacube: str, region: str):
+    """Build a semantically correct openEO graph for `process_id` against the cube."""
+    cfg = DATACUBES[datacube]
+    temporal = cfg["global_temporal"] if region == "global" else cfg["temporal"]
     cube = conn.load_stac(
-        STAC_COLLECTION_URL,
-        bands=BANDS,
-        temporal_extent=TEMPORAL,
-        spatial_extent=BBOX_AREA,
+        cfg["url"],
+        bands=[cfg["band"]],
+        temporal_extent=temporal,
+        spatial_extent=REGIONS[region],
     )
     eop = openeo.processes
 
@@ -210,13 +202,18 @@ def run_one(reg, graph, process_id):
     return time.perf_counter() - t0
 
 
-def main():
-    targets = sys.argv[1:] or None
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--datacube", choices=list(DATACUBES), default="MSG")
+    parser.add_argument("--region", choices=list(REGIONS), default="small")
+    parser.add_argument("processes", nargs="*", help="process ids to run (default: all)")
+    args = parser.parse_args(argv)
+
     conn = openeo.connect(
         "https://openeo-staging.datalakecube.eumetsat.data.destination-earth.eu/openeo/1.1.0/"
     )
 
-    cube = load_cube()
+    cube = load_cube(args.datacube, args.region)
     reg = build_registry(cube)
 
     processes = [
@@ -274,19 +271,19 @@ def main():
         "tan",
         "variance",
     ]
-    if targets:
-        processes = [p for p in processes if p in targets]
+    if args.processes:
+        processes = [p for p in processes if p in args.processes]
 
     results = []
     for pid in processes:
         print("=" * 100)
         print(f"PROCESS: {pid}")
         try:
-            graph = make_graph(conn, pid)
+            graph = make_graph(conn, pid, args.datacube, args.region)
             dur = run_one(reg, graph, pid)
             results.append({"process": pid, "status": "ok", "time_s": round(dur, 2)})
             print(f"  OK ({dur:.2f}s)")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             results.append(
                 {
                     "process": pid,
@@ -298,7 +295,7 @@ def main():
         print()
 
     print("\n" + "=" * 100)
-    print("SUMMARY")
+    print(f"SUMMARY ({args.datacube}, {args.region})")
     for r in results:
         status = r["status"]
         mark = "PASS" if status == "ok" else "FAIL"
@@ -307,8 +304,15 @@ def main():
     n_ok = sum(1 for r in results if r["status"] == "ok")
     print(f"\n{len(results)} processes: {n_ok} OK, {len(results) - n_ok} failed")
 
-    out = RESULTS_OUT
-    json.dump(results, open(out, "w"), indent=2)
+    out = Path(
+        os.environ.get(
+            "L1_RESULTS_OUT",
+            Path(__file__).parent
+            / f"l1_{args.datacube.lower()}_{args.region}_results.json",
+        )
+    )
+    with open(out, "w") as f:
+        json.dump(results, f, indent=2)
     print(f"results written to {out}")
 
 

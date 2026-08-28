@@ -1,22 +1,12 @@
 import copy
-import gc
 import logging
-from typing import Callable, Optional, Union
+from collections.abc import Callable
 
-import dask.array as da
-import geopandas as gpd
 import numpy as np
 import pandas as pd
-import shapely
-import xarray as xr
-import xvec
-from joblib import Parallel, delayed
 from openeo_pg_parser_networkx.pg_schema import TemporalInterval, TemporalIntervals
 
-from openeo_processes_dedl_slim.process_implementations.data_model import (
-    RasterCube,
-    VectorCube,
-)
+from openeo_processes_dedl_slim.process_implementations.data_model import RasterCube
 from openeo_processes_dedl_slim.process_implementations.exceptions import (
     DimensionNotAvailable,
     TooManyDimensions,
@@ -29,11 +19,11 @@ logger = logging.getLogger(__name__)
 
 def aggregate_temporal(
     data: RasterCube,
-    intervals: Union[TemporalIntervals, list[TemporalInterval], list[Optional[str]]],
+    intervals: TemporalIntervals | list[TemporalInterval] | list[str | None],
     reducer: Callable,
-    labels: Optional[list] = None,
-    dimension: Optional[str] = None,
-    context: Optional[dict] = None,
+    labels: list | None = None,
+    dimension: str | None = None,
+    context: dict | None = None,
     **kwargs,
 ) -> RasterCube:
     temporal_dims = data.openeo.temporal_dims
@@ -54,7 +44,7 @@ def aggregate_temporal(
                 f"The data cube contains multiple temporal dimensions: {temporal_dims}. The parameter `dimension` must be specified."
             )
         t = temporal_dims[0]
-    if isinstance(intervals, TemporalIntervals) or isinstance(intervals, list):
+    if isinstance(intervals, (TemporalIntervals, list)):
         interval_str = []
         for interval in intervals:
             if isinstance(interval, TemporalInterval):
@@ -210,7 +200,7 @@ def aggregate_temporal_period(
     data: RasterCube,
     reducer: Callable,
     period: str,
-    dimension: Optional[str] = None,
+    dimension: str | None = None,
 ) -> RasterCube:
     temporal_dims = data.openeo.temporal_dims
 
@@ -232,15 +222,15 @@ def aggregate_temporal_period(
         applicable_temporal_dimension = temporal_dims[0]
 
     periods_to_frequency = {
-        "hour": "H",
+        "hour": "h",
         "day": "D",
         "week": "W",
-        "month": "M",
+        "month": "ME",
         "season": "QS-DEC",
-        "year": "AS",
+        "year": "YS",
     }
 
-    if period in periods_to_frequency.keys():
+    if period in periods_to_frequency:
         frequency = periods_to_frequency[period]
         resampled_data = data.resample({applicable_temporal_dimension: frequency})
 
