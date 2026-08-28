@@ -38,12 +38,16 @@ def is_valid(x: ArrayLike):
 
 
 def is_nodata(x: ArrayLike):
+    if isinstance(x, np.ndarray) or _is_dask_array(x):
+        # Element-wise: arrays never contain the Python `None` sentinel used
+        # to signal a no-data value in this model.
+        return np.zeros_like(x, dtype=bool)
     return x is None
 
 
 def is_nan(x: ArrayLike):
-    if is_nodata(x):
-        return is_nodata(x)
+    if x is None:
+        return True
     return np.isnan(x)
 
 

@@ -1,16 +1,16 @@
-import json
 import logging
 import warnings
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
-import dask.array as da
-import geopandas as gpd
 import numpy as np
 import pyproj
-import shapely
-import xarray as xr
 from openeo_pg_parser_networkx.pg_schema import BoundingBox, TemporalInterval
 
+from openeo_processes_dedl_slim.process_implementations.cubes.healpix import (
+    filter_healpix_bbox,
+    get_healpix_dim,
+)
 from openeo_processes_dedl_slim.process_implementations.cubes.utils import (
     ensure_raster_cube,
 )
@@ -28,15 +28,15 @@ DEFAULT_CRS = "EPSG:4326"
 logger = logging.getLogger(__name__)
 
 __all__ = [
-    "filter_labels",
-    "filter_temporal",
     "filter_bands",
     "filter_bbox",
+    "filter_labels",
+    "filter_temporal",
 ]
 
 
 def filter_temporal(
-    data: RasterCube, extent: TemporalInterval, dimension: str = None
+    data: RasterCube, extent: TemporalInterval, dimension: str | None = None
 ) -> RasterCube:
     ensure_raster_cube(data, "filter_temporal")
     temporal_dims = data.openeo.temporal_dims
@@ -105,7 +105,7 @@ def filter_temporal(
 
 
 def filter_labels(
-    data: RasterCube, condition: Callable, dimension: str, context: Optional[Any] = None
+    data: RasterCube, condition: Callable, dimension: str, context: Any | None = None
 ) -> RasterCube:
     ensure_raster_cube(data, "filter_labels")
     if dimension == "bands":
@@ -146,7 +146,7 @@ def filter_labels(
     return data
 
 
-def filter_bands(data: RasterCube, bands: list[str] = None) -> RasterCube:
+def filter_bands(data: RasterCube, bands: list[str] | None = None) -> RasterCube:
     ensure_raster_cube(data, "filter_bands")
     if bands is None:
         raise BandFilterParameterMissing(
@@ -155,7 +155,7 @@ def filter_bands(data: RasterCube, bands: list[str] = None) -> RasterCube:
 
     missing = [b for b in bands if b not in data.data_vars]
     if missing:
-        raise Exception(
+        raise Exception(  # noqa: TRY002
             f"The provided bands: {bands} are not all available in the datacube. Please modify the bands parameter of filter_bands and choose among: {list(data.data_vars)}."
         )
     return data[bands]
@@ -163,14 +163,22 @@ def filter_bands(data: RasterCube, bands: list[str] = None) -> RasterCube:
 
 def filter_bbox(data: RasterCube, extent: BoundingBox) -> RasterCube:
     ensure_raster_cube(data, "filter_bbox")
+
+    if get_healpix_dim(data) is not None:
+        if _crs_equals(extent.crs, DEFAULT_CRS):
+            return filter_healpix_bbox(data, extent)
+        return filter_healpix_bbox(data, _reproject_bbox(extent, DEFAULT_CRS))
+
     try:
         odc_crs = data.odc.crs
         if odc_crs is not None:
             input_crs = str(odc_crs)
         else:
             input_crs = data.attrs.get("crs", None)
-    except Exception as e:
-        raise Exception(f"Not possible to estimate the input data projection! {e}")
+    except Exception as e:  # noqa: BLE001
+        raise Exception(  # noqa: TRY002
+            f"Not possible to estimate the input data projection! {e}"
+        )
     if input_crs is not None and not pyproj.crs.CRS(extent.crs).equals(input_crs):
         reprojected_extent = _reproject_bbox(extent, input_crs)
     else:
@@ -227,6 +235,12 @@ def filter_bbox(data: RasterCube, extent: BoundingBox) -> RasterCube:
         aoi = data.loc[{x_dim: x_slice}]
 
     return aoi
+
+
+def _crs_equals(source_crs: str | int | None, target_crs: str | int) -> bool:
+    if source_crs is None:
+        source_crs = DEFAULT_CRS
+    return pyproj.crs.CRS(source_crs).equals(pyproj.crs.CRS(target_crs))
 
 
 def _reproject_bbox(extent: BoundingBox, target_crs: str) -> BoundingBox:

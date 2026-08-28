@@ -321,7 +321,13 @@ def power(base, p):
 def extrema(data, ignore_nodata=True, axis=None, keepdims=False):
     if isinstance(data, list):
         data = np.array(data)
-    # TODO: Could be sped up by only iterating over array once
+    # When reducing along a specific axis (as ``apply_dimension`` does), the
+    # two extrema values (min, max) replace the reduced dimension, so the
+    # `keepdims` singleton is not propagated (same contract as `quantiles`).
+    if axis is not None:
+        minimum = _min(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=False)
+        maximum = _max(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=False)
+        return np.moveaxis(np.stack([minimum, maximum], axis=0), 0, axis)
     minimum = _min(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=keepdims)
     maximum = _max(data, ignore_nodata=ignore_nodata, axis=axis, keepdims=keepdims)
     array = dask.delayed(np.array)([minimum, maximum])
@@ -372,15 +378,21 @@ def quantiles(
     if data.size == 0:
         return np.array([np.nan] * len(probabilities))
 
-    if ignore_nodata:
-        result = np.nanquantile(
-            data, q=probabilities, method="linear", axis=axis, keepdims=keepdims
+    # When reducing along a specific axis (as ``apply_dimension`` does), the
+    # quantile axis replaces the reduced dimension, so `keepdims` is not
+    # propagated: `np.nanquantile` would keep the reduced axis as a trailing
+    # singleton (e.g. (n, 1, q)) which `apply_ufunc` cannot map back onto the
+    # dimension.
+    reduced = np.nanquantile if ignore_nodata else np.quantile
+    if axis is not None:
+        result = reduced(
+            data, q=probabilities, method="linear", axis=axis, keepdims=False
         )
     else:
-        result = np.quantile(
+        result = reduced(
             data, q=probabilities, method="linear", axis=axis, keepdims=keepdims
         )
-    if axis:
+    if axis is not None and axis is not False:
         result = np.moveaxis(result, 0, axis)
 
     return result

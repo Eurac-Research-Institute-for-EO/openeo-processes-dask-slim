@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
+import xarray as xr
 
-from openeo_processes_dedl_slim.process_implementations import drop_dimension
 from tests.mockdata import create_fake_rastercube
 
 
@@ -22,7 +22,7 @@ def test_openeo_accessor(temporal_interval, bounding_box, random_raster_data):
     assert raster_cube.openeo.band_dims == ()
 
     with pytest.raises(NotImplementedError):
-        raster_cube.openeo.z_dim
+        _ = raster_cube.openeo.z_dim
 
     raster_cube = raster_cube.rename({"t": "month"})
     assert raster_cube.openeo.temporal_dims[0] == "month"
@@ -32,3 +32,21 @@ def test_openeo_accessor(temporal_interval, bounding_box, random_raster_data):
 
     assert raster_cube.openeo.band_dims == ()
     assert list(raster_cube.data_vars) == ["B02", "B03", "B04", "B08"]
+
+
+def test_openeo_accessor_detects_healpix_index_as_spatial_dimension():
+    raster_cube = xr.Dataset(
+        {"B02": (["t", "healpix_index"], np.ones((1, 3)))},
+        coords={
+            "t": np.array(["2024-01-01"], dtype="datetime64[ns]"),
+            "healpix_index": np.array([10, 11, 12]),
+            "lat": ("healpix_index", np.array([49.0, 50.0, 51.0])),
+            "lon": ("healpix_index", np.array([8.0, 9.0, 10.0])),
+        },
+        attrs={"crs": "healpix:1024", "healpix_nside": 1024, "healpix_order": "ring"},
+    )
+
+    assert raster_cube.openeo.spatial_dims == ("healpix_index",)
+    assert raster_cube.openeo.x_dim is None
+    assert raster_cube.openeo.y_dim is None
+    assert raster_cube.openeo.other_dims == ()

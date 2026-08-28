@@ -1,6 +1,4 @@
-from typing import Optional
-
-import odc.geo.xr  # Required for the .geo accessor on xarrays.
+import odc.geo.xr  # noqa: F401  # Required for the .geo accessor on xarrays.
 import xarray as xr
 
 TEMPORAL_GUESSES = [
@@ -17,6 +15,7 @@ TEMPORAL_GUESSES = [
 ]
 X_GUESSES = ["x", "lon", "longitude"]
 Y_GUESSES = ["y", "lat", "latitude"]
+HEALPIX_GUESSES = ["healpix_index"]
 BANDS_GUESSES = ["b", "bands", "band"]
 
 
@@ -25,13 +24,15 @@ BANDS_GUESSES = ["b", "bands", "band"]
 class OpenEOExtensionDa:
     def __init__(self, xarray_obj):
         self._obj = xarray_obj
-        if hasattr(self._obj.dims, "keys"):
-            self._dims = list(self._obj.dims.keys())
-        else:
-            self._dims = list(self._obj.dims)
-        self._spatial_dims = self._guess_dims_for_type(
-            X_GUESSES
-        ) + self._guess_dims_for_type(Y_GUESSES)
+        self._dims = list(self._obj.sizes)
+        self._spatial_dims = list(
+            dict.fromkeys(
+                self._guess_dims_for_type(X_GUESSES)
+                + self._guess_dims_for_type(Y_GUESSES)
+                + self._guess_dims_for_type(HEALPIX_GUESSES)
+                + self._guess_healpix_dims_from_metadata()
+            )
+        )
         self._temporal_dims = self._guess_dims_for_type(TEMPORAL_GUESSES)
         self._bands_dims = self._guess_dims_for_type(BANDS_GUESSES)
         self._other_dims = [
@@ -51,6 +52,16 @@ class OpenEOExtensionDa:
             if guess in datacube_dims:
                 i = datacube_dims.index(guess)
                 found_dims.append(self._dims[i])
+        return found_dims
+
+    def _guess_healpix_dims_from_metadata(self):
+        found_dims = []
+        for dim in self._dims:
+            coord = self._obj.coords.get(dim)
+            if coord is None:
+                continue
+            if str(coord.attrs.get("dggs:grid_name", "")).casefold() == "healpix":
+                found_dims.append(dim)
         return found_dims
 
     def _get_existing_dims_and_pop_missing(self, expected_dims):
@@ -83,7 +94,7 @@ class OpenEOExtensionDa:
         return tuple(self._get_existing_dims_and_pop_missing(self._other_dims))
 
     @property
-    def x_dim(self) -> Optional[str]:
+    def x_dim(self) -> str | None:
         return next(
             iter(
                 [
@@ -96,7 +107,7 @@ class OpenEOExtensionDa:
         )
 
     @property
-    def y_dim(self) -> Optional[str]:
+    def y_dim(self) -> str | None:
         return next(
             iter(
                 [
