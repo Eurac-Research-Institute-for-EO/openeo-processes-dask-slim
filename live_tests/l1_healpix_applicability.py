@@ -206,7 +206,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--datacube", choices=list(DATACUBES), default="MSG")
     parser.add_argument("--region", choices=list(REGIONS), default="small")
-    parser.add_argument("processes", nargs="*", help="process ids to run (default: all)")
+    parser.add_argument(
+        "processes", nargs="*", help="process ids to run (default: all)"
+    )
     args = parser.parse_args(argv)
 
     conn = openeo.connect(

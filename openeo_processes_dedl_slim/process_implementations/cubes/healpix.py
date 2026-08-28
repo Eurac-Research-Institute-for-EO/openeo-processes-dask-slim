@@ -68,9 +68,7 @@ def get_healpix_nside(
     return int(nside) if nside is not None else None
 
 
-def get_healpix_order(
-    data: xr.Dataset | xr.DataArray, dim: str | None = None
-) -> str:
+def get_healpix_order(data: xr.Dataset | xr.DataArray, dim: str | None = None) -> str:
     if dim is None:
         dim = get_healpix_dim(data)
 
@@ -141,9 +139,7 @@ def healpix_bbox_indexer(
     coord = data.coords.get(dim)
     if coord is None:
         return None
-    if (
-        hasattr(coord.data, "dask") and coord.size > MAX_LAZY_HEALPIX_COORD_CELLS
-    ):
+    if hasattr(coord.data, "dask") and coord.size > MAX_LAZY_HEALPIX_COORD_CELLS:
         return None
     return np.flatnonzero(bbox_mask(np.asarray(coord.values)))
 

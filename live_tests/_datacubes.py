@@ -49,6 +49,12 @@ DATACUBES = {
 
 REGIONS = {
     "small": {"west": 0.0, "south": 0.0, "east": 1.0, "north": 1.0, "crs": "EPSG:4326"},
-    "large": {"west": -100.0, "south": -20.0, "east": 100.0, "north": 20.0, "crs": "EPSG:4326"},
+    "large": {
+        "west": -100.0,
+        "south": -20.0,
+        "east": 100.0,
+        "north": 20.0,
+        "crs": "EPSG:4326",
+    },
     "global": None,
 }

@@ -24,8 +24,9 @@ __all__ = ["apply", "apply_dimension", "apply_kernel"]
 
 
 def _is_apply_ufunc_dimension_mismatch(exc: ValueError) -> bool:
-    return "applied function returned data with an unexpected number of dimensions" in str(
-        exc
+    return (
+        "applied function returned data with an unexpected number of dimensions"
+        in str(exc)
     )
 
 
@@ -107,7 +108,9 @@ def _apply_dimension_vectorized(
     )
 
 
-def apply(data: RasterCube, process: Callable, context: dict | None = None) -> RasterCube:
+def apply(
+    data: RasterCube, process: Callable, context: dict | None = None
+) -> RasterCube:
     ensure_raster_cube(data, "apply")
     positional_parameters = {"x": 0}
     named_parameters = {"context": context}
