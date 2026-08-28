@@ -42,7 +42,7 @@ _DEFAULT_ENV_PATH = (
 _ENV_PATH = Path(os.environ.get("DEDL_ENV_PATH", _DEFAULT_ENV_PATH))
 load_dotenv(_ENV_PATH)
 
-DIMS = {"band": "healpix_index", "temporal": "t"}
+DIMS = {"band": "bands", "temporal": "t"}
 PROBABILITIES = [0.25, 0.5, 0.75]
 
 

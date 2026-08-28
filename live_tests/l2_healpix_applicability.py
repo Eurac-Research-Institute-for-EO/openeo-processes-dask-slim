@@ -41,7 +41,7 @@ _DEFAULT_ENV_PATH = (
 _ENV_PATH = Path(os.environ.get("DEDL_ENV_PATH", _DEFAULT_ENV_PATH))
 load_dotenv(_ENV_PATH)
 
-DIMS = {"band": "healpix_index", "temporal": "t"}
+DIMS = {"band": "bands", "spatial": "healpix_index", "temporal": "t"}
 NEW_DIM_NAME = "l2_check_dim"
 NEW_DIM_LABEL = "1"
 
@@ -234,7 +234,7 @@ def make_graph(conn, process_id, datacube: str, region: str):
             dimension=DIMS["temporal"], reducer=lambda data: data.mean()
         ),
         "rename_dimension": lambda: cube.rename_dimension(
-            source=DIMS["band"], target="renamed_dimension"
+            source=DIMS["spatial"], target="renamed_dimension"
         ),
         "rename_labels": lambda: cube.add_dimension(
             name=NEW_DIM_NAME, label=NEW_DIM_LABEL, type="other"
